@@ -87,3 +87,69 @@ def test_empty_coverage_yields_zero_aggregate(
     snap = dd.snapshot("fp_empty")
     assert snap.aggregate_pass_rate == 0.0
     assert snap.by_cell == {}
+
+
+# --------------------------------------------------------------------------- sub-plan Next03 §4.4 (AgDR-0018)
+#
+# Orchestrator auto-snapshot on target fingerprint change.
+
+
+@pytest.mark.unit
+def test_orchestrator_writes_snapshot_when_fingerprint_changes(
+    session_factory: Callable[[], Session],
+) -> None:
+    """When the injected target_fingerprinter returns a different value than
+    the prior step's, the orchestrator writes a defense_delta_snapshots row
+    (sub-plan Next03 §4.4)."""
+    from tests.unit.orchestrator.test_persistence import _build_orchestrator
+
+    coverage = CoverageMatrix(session_factory)
+    dd = DefenseDelta(session_factory, coverage)
+    # Step 1 returns "fp-a" (baseline); step 2 returns "fp-b" (change!).
+    fingerprints = iter(["fp-a", "fp-b"])
+
+    orch = _build_orchestrator(session_factory)
+    orch._defense_delta = dd
+    orch._target_fingerprinter = lambda: next(fingerprints)
+    orch._last_seen_fingerprint = None
+
+    orch.step(batch_size=1)
+    # After step 1: baseline recorded, no snapshot row written yet.
+    session = session_factory()
+    n_after_first = session.query(_SnapshotRow).count()
+    session.close()
+    assert n_after_first == 0
+
+    orch.step(batch_size=1)
+    # After step 2: fingerprint changed → exactly one snapshot row written.
+    session = session_factory()
+    rows = session.query(_SnapshotRow).all()
+    session.close()
+    assert len(rows) == 1
+    assert rows[0].fingerprint == "fp-b"
+
+
+@pytest.mark.unit
+def test_orchestrator_skips_snapshot_when_fingerprint_unchanged(
+    session_factory: Callable[[], Session],
+) -> None:
+    """Successive steps with the same fingerprint do NOT write a snapshot
+    row (sub-plan Next03 §4.4)."""
+    from tests.unit.orchestrator.test_persistence import _build_orchestrator
+
+    coverage = CoverageMatrix(session_factory)
+    dd = DefenseDelta(session_factory, coverage)
+
+    orch = _build_orchestrator(session_factory)
+    orch._defense_delta = dd
+    orch._target_fingerprinter = lambda: "fp-stable"
+    orch._last_seen_fingerprint = None
+
+    orch.step(batch_size=1)
+    orch.step(batch_size=1)
+    orch.step(batch_size=1)
+
+    session = session_factory()
+    n = session.query(_SnapshotRow).count()
+    session.close()
+    assert n == 0  # no changes ever observed → no snapshots

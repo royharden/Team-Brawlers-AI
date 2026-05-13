@@ -60,6 +60,7 @@ from agentforge.orchestrator.coverage import (
     CoverageCell,
     CoverageMatrix,
 )
+from agentforge.orchestrator.defense_delta import DefenseDelta
 from agentforge.orchestrator.prompts import (
     ORCHESTRATOR_SYSTEM_PROMPT,
     ORCHESTRATOR_USER_PROMPT_TEMPLATE,
@@ -167,6 +168,8 @@ class OrchestratorAgent:
         run_type: str = "exploratory",
         pricing: PricingTable | None = None,
         usage_sources: dict[str, Any] | None = None,
+        target_fingerprinter: Callable[[], str] | None = None,
+        defense_delta: DefenseDelta | None = None,
     ) -> None:
         self._redteam = redteam
         self._target_adapter = target_adapter
@@ -195,6 +198,14 @@ class OrchestratorAgent:
         # "documentation", "orchestrator_planner".
         self._pricing = pricing
         self._usage_sources: dict[str, Any] = dict(usage_sources or {})
+        # Sub-plan Next03 §4.4 (AgDR-0018): Defense Delta auto-snapshot. When
+        # both are wired, step() reads the fingerprinter at top-of-loop and
+        # writes a snapshot row each time it CHANGES. None = AgDR-0017
+        # behavior (the seeder + manual `tb attack` runs are responsible for
+        # snapshots).
+        self._target_fingerprinter = target_fingerprinter
+        self._defense_delta = defense_delta
+        self._last_seen_fingerprint: str | None = target_fingerprint or None
 
     # ------------------------------------------------------------------ plan
 
@@ -267,6 +278,11 @@ class OrchestratorAgent:
         """
         # Ensure the run row exists before doing anything else this step.
         self._persist_run_if_needed()
+
+        # Sub-plan Next03 §4.4 (AgDR-0018): refresh the target fingerprint at
+        # top-of-loop and snapshot Defense Delta if it changed. No-op when the
+        # fingerprinter or defense_delta isn't wired (memory-only / test mode).
+        self._refresh_fingerprint_and_maybe_snapshot()
 
         result = OrchestratorStepResult()
         if not self._budget.may_continue():
@@ -472,6 +488,38 @@ class OrchestratorAgent:
             return None
 
     # --------------------------------------------------- persistence (AgDR-0017)
+
+    def _refresh_fingerprint_and_maybe_snapshot(self) -> None:
+        """Sub-plan Next03 §4.4: call the injected fingerprinter, detect a
+        change, and persist a DefenseDelta snapshot row when one occurs.
+
+        - No fingerprinter wired → no-op (preserves AgDR-0017 behavior).
+        - Fingerprinter returns falsy → leave state unchanged.
+        - First non-None observation just records the baseline; only later
+          *changes* trigger a snapshot. The seeder owns the initial row.
+        """
+        if self._target_fingerprinter is None or self._defense_delta is None:
+            return
+        try:
+            new_fp = self._target_fingerprinter()
+        except Exception as exc:  # broad: network / curl / fingerprint helper
+            logger.warning("target_fingerprinter raised: {}", exc)
+            return
+        if not new_fp:
+            return
+        self._target_fingerprint = new_fp
+        if self._last_seen_fingerprint is None:
+            self._last_seen_fingerprint = new_fp
+            return
+        if new_fp == self._last_seen_fingerprint:
+            return
+        # Fingerprint changed — snapshot.
+        try:
+            self._defense_delta.snapshot(new_fp)
+        except Exception as exc:
+            logger.warning("DefenseDelta.snapshot failed for {}: {}", new_fp, exc)
+        self._recent_fingerprint_change_at = datetime.now(UTC)
+        self._last_seen_fingerprint = new_fp
 
     def _persist_run_if_needed(self) -> None:
         """Insert the ``runs`` row on the first persistence operation.

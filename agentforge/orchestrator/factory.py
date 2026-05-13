@@ -51,6 +51,7 @@ from agentforge.memory.db import get_session_factory
 from agentforge.memory.repo import MemoryRepo
 from agentforge.orchestrator.budget_guard import BudgetGuard
 from agentforge.orchestrator.coverage import CoverageMatrix
+from agentforge.orchestrator.defense_delta import DefenseDelta
 from agentforge.orchestrator.orchestrator import OrchestratorAgent, TargetExecutor
 from agentforge.pricing import PricingTable
 from agentforge.redteam.agent import RedTeamAgent
@@ -289,6 +290,11 @@ def build_orchestrator(
         # AgDR-0021: real per-call token-cost path.
         pricing=pricing,
         usage_sources=usage_sources,
+        # Sub-plan Next03 §4.4 (AgDR-0018): Defense Delta auto-snapshot.
+        # target_fingerprinter is None by default; live deployments would
+        # wire `lambda: compute_fingerprint(...)`. Operator decision Q4.
+        defense_delta=DefenseDelta(session_factory=session_factory, coverage=coverage),
+        target_fingerprinter=None,
     )
 
 
