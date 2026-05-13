@@ -29,6 +29,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from sqlalchemy.exc import IntegrityError  # noqa: E402
+
 from agentforge.documentation.agent import DocumentationAgent  # noqa: E402
 from agentforge.documentation.regression_curator import (  # noqa: E402
     RegressionCurator,
@@ -44,6 +46,7 @@ from agentforge.memory.db import (  # noqa: E402
     init_db,
     make_session_factory,
 )
+from agentforge.memory.repo import MemoryRepo  # noqa: E402
 from agentforge.memory.schemas import AdapterResponse, MutatedAttack  # noqa: E402
 from agentforge.orchestrator.target_fingerprint import (  # noqa: E402
     compute_fingerprint,
@@ -263,7 +266,7 @@ def _build_response(
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reports-dir", default="reports", type=Path)
     parser.add_argument("--regression-dir", default="evals/regression", type=Path)
@@ -286,7 +289,7 @@ def main() -> int:
         default=None,
         help="Generate the first N sample VRs (default: all configured).",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     args.reports_dir.mkdir(parents=True, exist_ok=True)
     args.regression_dir.mkdir(parents=True, exist_ok=True)
@@ -316,9 +319,11 @@ def main() -> int:
         tagger=tagger,
         regression_curator=curator,
         reports_dir=args.reports_dir,
-        repo=None,  # write_report tolerates a missing repo; persistence is
-        # a Phase-8 polish task. Reports + regression cases land
-        # on disk regardless.
+        # Sub-plan Next03 §4.1: also persist into vuln_reports / regression_cases
+        # so a fresh deploy that runs the seeder + this script has DB rows the
+        # /v1/reports endpoint can serve. VulnerabilityClassIndex.register
+        # is already DB-backed and idempotent on the dedupe key.
+        repo=MemoryRepo(session_factory=session_factory),
         notifier_queue_path=args.notifier_queue,
     )
 
@@ -350,15 +355,25 @@ def main() -> int:
                 file=sys.stderr,
             )
             continue
-        report = doc.write_report(
-            attack=attack,
-            request={"endpoint": seed["target_endpoint"], "method": "POST"},
-            response=response,
-            verdict=verdict,
-            seed=seed,
-            target_fingerprint=target_fingerprint,
-            run_id=run_id,
-        )
+        try:
+            report = doc.write_report(
+                attack=attack,
+                request={"endpoint": seed["target_endpoint"], "method": "POST"},
+                response=response,
+                verdict=verdict,
+                seed=seed,
+                target_fingerprint=target_fingerprint,
+                run_id=run_id,
+            )
+        except IntegrityError as exc:
+            # Idempotency: a vr_id collision (rare — counter is monotonic) or
+            # a regression_case UNIQUE-vr_id collision. Log and continue so a
+            # rerun after partial failure is recoverable.
+            print(
+                f"[{idx}/{len(seeds)}] {seed['id']}: SKIP (DB collision: {exc.orig})",
+                file=sys.stderr,
+            )
+            continue
         written.append(report.vr_id)
         ts = datetime.now(UTC).isoformat()
         print(
