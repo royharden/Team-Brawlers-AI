@@ -138,6 +138,11 @@ def test_resolve_models_anthropic_all_found(monkeypatch: pytest.MonkeyPatch) -> 
     pins the legacy anthropic path explicitly.
     """
     monkeypatch.setenv("REDTEAM_PROVIDER", "anthropic")
+    # Pin REDTEAM_MODEL to a valid Anthropic name so the resolver doesn't
+    # substitute. Without this, a .env containing the AgDR-0013 default
+    # (cognitivecomputations/dolphin-mistral-24b-venice-edition:free) bleeds
+    # into MainConfig.anthropic.redteam_model and forces a substitution.
+    monkeypatch.setenv("REDTEAM_MODEL", "claude-sonnet-4-6")
     from agentforge.config import get_settings
 
     get_settings.cache_clear()
