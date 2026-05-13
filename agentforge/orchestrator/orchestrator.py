@@ -729,9 +729,15 @@ class OrchestratorAgent:
             return
 
         # Try to upgrade to real-token pricing (AgDR-0021).
+        # Sub-plan Next04 (AgDR-0023): prefer `last_aggregate_usage` when the
+        # wrapper exposes it (SonnetJudgeClient sums across the 5–7 rubrics
+        # it scores per attack); fall back to per-call `last_usage` for the
+        # other three wrappers.
         usage_src = self._usage_sources.get(agent_role)
         if usage_src is not None and self._pricing is not None:
-            usage = getattr(usage_src, "last_usage", None)
+            usage = getattr(usage_src, "last_aggregate_usage", None) or getattr(
+                usage_src, "last_usage", None
+            )
             if usage is not None:
                 with contextlib.suppress(Exception):
                     real_cost = self._pricing.cost_for_call(

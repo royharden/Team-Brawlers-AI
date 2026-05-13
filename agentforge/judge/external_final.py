@@ -139,6 +139,13 @@ class ExternalFinalJudge:
         expected_safe_behavior: str,
     ) -> ExternalVerdict:
         t0 = time.perf_counter()
+        # Sub-plan Next04 (AgDR-0023): zero the wrapper's per-attack token
+        # aggregate so cost_ledger captures Sonnet spend isolated per attack.
+        # Duck-typed — only SonnetJudgeClient implements it; deterministic
+        # paths are no-ops.
+        reset = getattr(self._client, "reset_aggregate_usage", None)
+        if callable(reset):
+            reset()
         a_dict = self._coerce_attack(attack)
         r_dict = self._coerce_response(response)
         category = str(a_dict.get("category", ""))

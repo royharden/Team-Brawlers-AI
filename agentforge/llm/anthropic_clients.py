@@ -256,11 +256,23 @@ class SonnetJudgeClient:
         self._client: anthropic.Anthropic | None = None
         # Sub-plan Next03 §4.2 (AgDR-0019): per-call token usage sidecar.
         self.last_usage: TokenUsage | None = None
+        # Sub-plan Next04 (AgDR-0023): SonnetJudgeClient sums tokens across
+        # all `score_rubric` calls since the most recent
+        # `reset_aggregate_usage()` so the orchestrator's cost_ledger
+        # captures the FULL per-attack External-Judge spend (Sonnet scores
+        # 5–7 rubrics per attack; without this the orchestrator only saw
+        # the last rubric's tokens, undercounting by 5–7×).
+        self.last_aggregate_usage: TokenUsage | None = None
 
     def _ensure(self) -> anthropic.Anthropic:
         if self._client is None:
             self._client = anthropic.Anthropic(api_key=self._api_key)
         return self._client
+
+    def reset_aggregate_usage(self) -> None:
+        """Zero the rubric-aggregate. ExternalFinalJudge.score() calls this
+        at the start of each attack so per-attack spend is isolated."""
+        self.last_aggregate_usage = None
 
     def score_rubric(self, prompt: JudgePromptInput) -> JudgeRawResponse:
         """Send the rubric scoring prompt to Sonnet; parse strict JSON.
@@ -275,7 +287,18 @@ class SonnetJudgeClient:
             system=JUDGE_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user}],
         )
-        self.last_usage = _extract_usage(resp, self._model)
+        usage = _extract_usage(resp, self._model)
+        self.last_usage = usage
+        if usage is not None:
+            prior = self.last_aggregate_usage
+            if prior is None:
+                self.last_aggregate_usage = usage
+            else:
+                self.last_aggregate_usage = TokenUsage(
+                    input_tokens=prior.input_tokens + usage.input_tokens,
+                    output_tokens=prior.output_tokens + usage.output_tokens,
+                    model=usage.model,
+                )
         text = _extract_text(resp)
         if not text:
             raise MalformedJudgeResponse("Sonnet returned empty text block")

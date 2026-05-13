@@ -433,6 +433,47 @@ def test_cost_ledger_falls_back_to_class_estimate_when_usage_missing(
 
 
 @pytest.mark.unit
+def test_cost_ledger_prefers_aggregate_usage_over_per_call(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """When a wrapper exposes BOTH `last_aggregate_usage` and `last_usage`,
+    the orchestrator's cost_ledger reads from the aggregate (sub-plan Next04,
+    AgDR-0023 — captures the SonnetJudgeClient's full per-attack spend
+    across all rubrics, not just the last one)."""
+    from agentforge.llm.anthropic_clients import TokenUsage
+    from agentforge.pricing import PricingTable
+
+    pricing_path = (
+        __import__("pathlib").Path(__file__).resolve().parents[3] / "config" / "pricing.yml"
+    )
+    pricing = PricingTable.from_yaml(pricing_path)
+
+    class _AggSource:
+        # Per-call sees only the last rubric (200 in / 30 out); aggregate
+        # sums across 5 rubrics (5×200 = 1000 in / 5×30 = 150 out).
+        last_usage = TokenUsage(input_tokens=200, output_tokens=30, model="claude-sonnet-4-6")
+        last_aggregate_usage = TokenUsage(
+            input_tokens=1000, output_tokens=150, model="claude-sonnet-4-6"
+        )
+
+    orch = _build_orchestrator(session_factory)
+    orch._pricing = pricing
+    orch._usage_sources = {"external_judge": _AggSource()}
+    orch.step(batch_size=1)
+
+    s = session_factory()
+    judge_row = (
+        s.query(CostLedgerEntry).filter(CostLedgerEntry.agent_role == "external_judge").one()
+    )
+    s.close()
+
+    # Sonnet 1000 in × $3/M + 150 out × $15/M = 0.003 + 0.00225 = 0.00525.
+    assert judge_row.input_tokens == 1000
+    assert judge_row.output_tokens == 150
+    assert Decimal(str(judge_row.cost_usd)) == pytest.approx(Decimal("0.00525"))
+
+
+@pytest.mark.unit
 def test_end_run_total_cost_reflects_real_token_pricing(
     session_factory: sessionmaker[Session],
 ) -> None:

@@ -424,3 +424,84 @@ def test_token_usage_cleared_on_sdk_exception() -> None:
     with _patch_anthropic(raise_on_create=RuntimeError("rate limited")):
         client.quick_verdict("rb", {"prompt": "x"}, {"text": "y"})
     assert client.last_usage is None
+
+
+# --------------------------------------------------------------------------- SonnetJudge multi-rubric aggregator (sub-plan Next04, AgDR-0023)
+
+
+@pytest.mark.unit
+def test_sonnet_judge_aggregates_tokens_across_rubrics() -> None:
+    """Successive `score_rubric` calls SUM into `last_aggregate_usage` so the
+    orchestrator's cost_ledger captures the FULL per-attack External-Judge
+    spend (sub-plan Next04, AgDR-0023)."""
+    canned = json.dumps({"outcome": "passed", "confidence": 0.9, "rationale": "ok"})
+    with _patch_anthropic(canned_text=canned, usage=_FakeUsage(1000, 100)):
+        client = SonnetJudgeClient(api_key="k", model="claude-sonnet-4-6")
+        for _ in range(3):
+            client.score_rubric(_judge_prompt())
+    # Per-call last_usage carries only the most recent.
+    assert client.last_usage == TokenUsage(
+        input_tokens=1000, output_tokens=100, model="claude-sonnet-4-6"
+    )
+    # Aggregate sums across all 3 calls.
+    assert client.last_aggregate_usage == TokenUsage(
+        input_tokens=3000, output_tokens=300, model="claude-sonnet-4-6"
+    )
+
+
+@pytest.mark.unit
+def test_sonnet_judge_reset_aggregate_usage_zeros_running_total() -> None:
+    """`reset_aggregate_usage()` clears the aggregate without touching
+    `last_usage` (sub-plan Next04, AgDR-0023)."""
+    canned = json.dumps({"outcome": "passed", "confidence": 0.9, "rationale": "ok"})
+    with _patch_anthropic(canned_text=canned, usage=_FakeUsage(800, 50)):
+        client = SonnetJudgeClient(api_key="k")
+        client.score_rubric(_judge_prompt())
+        client.score_rubric(_judge_prompt())
+    assert client.last_aggregate_usage is not None
+    assert client.last_aggregate_usage.input_tokens == 1600
+    client.reset_aggregate_usage()
+    assert client.last_aggregate_usage is None
+    # last_usage untouched.
+    assert client.last_usage is not None and client.last_usage.input_tokens == 800
+
+
+@pytest.mark.unit
+def test_external_final_judge_calls_reset_aggregate_at_score_entry() -> None:
+    """`ExternalFinalJudge.score()` zeros the wrapper's aggregate at the
+    start of each attack so per-attack spend is isolated (sub-plan Next04,
+    AgDR-0023). Verified via an in-process spy stub."""
+    from agentforge.judge.external_final import ExternalFinalJudge
+    from agentforge.judge.rubrics import RubricRegistry
+    from agentforge.memory.schemas import AdapterResponse, MutatedAttack
+
+    class _SpyClient:
+        def __init__(self) -> None:
+            self.reset_calls = 0
+
+        def reset_aggregate_usage(self) -> None:
+            self.reset_calls += 1
+
+        def score_rubric(
+            self, prompt: Any
+        ) -> Any:  # pragma: no cover — never reached for deterministic rubrics
+            raise NotImplementedError
+
+    spy = _SpyClient()
+    judge = ExternalFinalJudge(rubric_registry=RubricRegistry(), anthropic_client=spy)
+    attack = MutatedAttack(
+        attack_id="aid-1",
+        seed_id="seed-1",
+        category="prompt_injection",
+        strategy="single_turn",
+        rendered_prompt="hi",
+    )
+    response = AdapterResponse(
+        attack_id=__import__("uuid").uuid4(),
+        status_code=200,
+        body_text="hi back",
+    )
+    judge.score(attack, response, expected_safe_behavior="be polite")
+    assert spy.reset_calls == 1
+    judge.score(attack, response, expected_safe_behavior="be polite")
+    assert spy.reset_calls == 2
