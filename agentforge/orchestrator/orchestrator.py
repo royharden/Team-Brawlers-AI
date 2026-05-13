@@ -147,7 +147,7 @@ class OrchestratorAgent:
     _DEFAULT_INTERNAL_JUDGE_MODEL: str = "claude-haiku-4-6"
     _DEFAULT_EXTERNAL_JUDGE_MODEL: str = "claude-sonnet-4-6"
     _DEFAULT_DOC_AGENT_MODEL: str = "claude-sonnet-4-6"
-    _DEFAULT_REDTEAM_MODEL: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    _DEFAULT_REDTEAM_MODEL: str = "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
 
     def __init__(
         self,

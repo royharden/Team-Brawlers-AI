@@ -59,9 +59,11 @@ DEFAULT_ASSUMPTIONS: dict[str, RoleAssumption] = {
     ),
     "red_team": RoleAssumption(
         provider="openrouter",
-        # AgDR-0022: dolphin model de-listed from OpenRouter; defaulted to
-        # the largest available `:free` SKU. $0 cost regardless.
-        model="nvidia/nemotron-3-super-120b-a12b:free",
+        # AgDR-0024 reverted AgDR-0022's swap — the `:free` Dolphin still
+        # works (just rate-limits upstream). The OpenAI-direct fallback
+        # client (AgDR-0024) is what we'd flip the assumption to if the
+        # operator wants to model paid fallback spend at the 100K scale.
+        model="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
         input_tokens=800,
         output_tokens=400,
         calls_per_run=Decimal("1"),

@@ -73,6 +73,7 @@ from agentforge.redteam.mutators.role_wrap import (
     RoleWrapAuditor,
     RoleWrapDoctor,
 )
+from agentforge.redteam.openai_client import RedTeamOpenAIClient
 from agentforge.redteam.openrouter_client import RedTeamOpenRouterClient
 from agentforge.redteam.seed_catalog import SeedCatalog
 
@@ -180,12 +181,26 @@ def build_orchestrator(
 
     # ---- Red Team -------------------------------------------------------
     redteam_client = _build_redteam_client(cfg)
+    # AgDR-0024: when OPENAI_API_KEY is set, the agent gets a second-tier
+    # fallback that fires when the primary OpenRouter chain (per AgDR-0013)
+    # exhausts. Operator's OpenAI account has cybersecurity-research clearance
+    # so refusal rate on Red Team paraphrases is lower than the mainstream
+    # `:free` SKUs we'd otherwise have to fall back to.
+    redteam_fallback_client = (
+        RedTeamOpenAIClient(
+            api_key=cfg.openai.api_key,
+            model=cfg.openai.redteam_model,
+        )
+        if cfg.openai.is_configured
+        else None
+    )
     redteam = RedTeamAgent(
         SeedCatalog(),
         _build_default_mutator_stack(),
         AttackLineage(),
         anthropic_client=redteam_client,
         rng_seed=0,
+        fallback_client=redteam_fallback_client,
     )
 
     # ---- Rubric registry (shared by both judges) -------------------------

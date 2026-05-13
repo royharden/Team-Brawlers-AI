@@ -56,11 +56,18 @@ class RedTeamAgent:
         anthropic_client: AnthropicClient | None = None,
         *,
         rng_seed: int = 0,
+        fallback_client: AnthropicClient | None = None,
     ) -> None:
         self._seeds = seeds
         self._mutators = mutators
         self._lineage = lineage
         self._client = anthropic_client
+        # AgDR-0024: optional second-tier fallback. When the primary
+        # `_client.paraphrase` raises (typical: OpenRouter `:free` upstream
+        # rate-limit followed by exhausted retry budget), the agent tries
+        # this client before degrading to deterministic-only. Factory wires
+        # `RedTeamOpenAIClient` here when `OPENAI_API_KEY` is set.
+        self._fallback_client = fallback_client
         self._rng = random.Random(rng_seed)
 
     def generate(self, job: AttackJob) -> MutatedAttack:
@@ -98,17 +105,17 @@ class RedTeamAgent:
 
         # Single-turn paraphrase pass via Anthropic (skipped for crescendo).
         if self._client is not None and rendered_prompt is not None and rendered_turns is None:
-            try:
-                paraphrased, refusal_info = self._client.paraphrase(seed, rendered_prompt)
+            paraphrased, refusal_info, source = self._paraphrase_with_fallback(
+                seed, rendered_prompt
+            )
+            if paraphrased is not None:
                 if refusal_info is not None:
                     refusal_observed = True
                     refusal_reframing = refusal_info.suggested_reframing
                     rationale = f"paraphrase refused; marker={refusal_info.marker_matched!r}"
                 else:
                     rendered_prompt = paraphrased
-                    rationale = "anthropic-paraphrase"
-            except Exception as exc:
-                logger.warning("Paraphrase failed; falling back to deterministic: {}", exc)
+                    rationale = source
 
         attack = MutatedAttack(
             attack_id=str(uuid.uuid4()),
@@ -160,8 +167,10 @@ class RedTeamAgent:
         rationale = "deterministic-mutator-only (escalation)"
 
         if self._client is not None and rendered_prompt is not None:
-            try:
-                paraphrased, refusal_info = self._client.paraphrase(seed, rendered_prompt)
+            paraphrased, refusal_info, source = self._paraphrase_with_fallback(
+                seed, rendered_prompt
+            )
+            if paraphrased is not None:
                 if refusal_info is not None:
                     refusal_observed = True
                     refusal_reframing = refusal_info.suggested_reframing
@@ -170,9 +179,7 @@ class RedTeamAgent:
                     )
                 else:
                     rendered_prompt = paraphrased
-                    rationale = "anthropic-paraphrase (escalation)"
-            except Exception as exc:
-                logger.warning("Escalation paraphrase failed: {}", exc)
+                    rationale = f"{source} (escalation)"
 
         attack = MutatedAttack(
             attack_id=str(uuid.uuid4()),
@@ -206,6 +213,47 @@ class RedTeamAgent:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
+
+    def _paraphrase_with_fallback(
+        self, seed: dict[str, Any], current_prompt: str
+    ) -> tuple[str | None, RefusalInfo | None, str]:
+        """Try `self._client.paraphrase` first; on exception try `_fallback_client`.
+
+        Returns ``(text|None, refusal|None, source_label)``. ``text=None``
+        means BOTH clients failed and the caller should keep the
+        deterministic prompt as-is. ``source_label`` is one of
+        ``"openrouter-paraphrase"``, ``"openai-fallback-paraphrase"``,
+        ``"deterministic-mutator-only"`` so the rationale field reflects
+        which path actually fed the rendered prompt.
+
+        AgDR-0024 — second-tier fallback chain.
+        """
+        if self._client is None:
+            return (None, None, "deterministic-mutator-only")
+        try:
+            text, info = self._client.paraphrase(seed, current_prompt)
+            # Back-compat label kept for tests that pre-date AgDR-0024 — the
+            # primary path was historically Anthropic, then OpenRouter; the
+            # label "anthropic-paraphrase" is now a generic "primary client
+            # succeeded" marker regardless of which provider's client it is.
+            return (text, info, "anthropic-paraphrase")
+        except Exception as exc:
+            logger.warning(
+                "Primary paraphrase failed: {}; trying fallback client",
+                exc,
+            )
+        if self._fallback_client is None:
+            logger.warning("No fallback client wired; degrading to deterministic")
+            return (None, None, "deterministic-mutator-only")
+        try:
+            text, info = self._fallback_client.paraphrase(seed, current_prompt)
+            return (text, info, "openai-fallback-paraphrase")
+        except Exception as exc:
+            logger.warning(
+                "Fallback paraphrase also failed: {}; degrading to deterministic",
+                exc,
+            )
+            return (None, None, "deterministic-mutator-only")
 
     def _pick_seed(self, job: AttackJob) -> dict[str, Any]:
         if job.seed_id is not None:

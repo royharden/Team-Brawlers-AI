@@ -170,3 +170,77 @@ def test_generate_without_client_falls_back_to_deterministic_mutators_only() -> 
     # Some mutator should still have been applied since the seed lists directives.
     assert isinstance(attack.mutator_chain, list)
     assert attack.rendered_prompt
+
+
+# --- AgDR-0024: second-tier fallback chain (OpenRouter primary → OpenAI fallback) ---
+
+
+class _FailingClient:
+    """Primary client that always raises — simulates OpenRouter rate-limit
+    exhaustion or 404 (per AgDR-0022 / AgDR-0024)."""
+
+    def paraphrase(
+        self, seed: dict[str, Any], current_prompt: str
+    ) -> tuple[str, RefusalInfo | None]:
+        _ = (seed, current_prompt)
+        raise RuntimeError("primary upstream rate-limited")
+
+
+@pytest.mark.unit
+def test_generate_falls_through_to_fallback_client_on_primary_exception() -> None:
+    """When the primary `paraphrase` raises and a fallback_client is wired,
+    the agent uses the fallback's text + records source label
+    `openai-fallback-paraphrase` (sub-plan AgDR-0024)."""
+    primary = _FailingClient()
+    fallback = _FakeClean()
+    agent = RedTeamAgent(
+        SeedCatalog(),
+        _stack(),
+        AttackLineage(),
+        anthropic_client=primary,
+        fallback_client=fallback,
+        rng_seed=2,
+    )
+    attack = agent.generate(_job())
+    assert fallback.calls, "fallback client should have been called after primary failed"
+    assert attack.rendered_prompt is not None
+    assert attack.rendered_prompt.startswith("PARAPHRASED:")
+    assert attack.rationale == "openai-fallback-paraphrase"
+    assert attack.refusal_observed is False
+
+
+@pytest.mark.unit
+def test_generate_degrades_to_deterministic_when_both_clients_fail() -> None:
+    """When the primary AND the fallback both raise, the agent keeps the
+    deterministic prompt and records `deterministic-mutator-only` rationale
+    (sub-plan AgDR-0024)."""
+    agent = RedTeamAgent(
+        SeedCatalog(),
+        _stack(),
+        AttackLineage(),
+        anthropic_client=_FailingClient(),
+        fallback_client=_FailingClient(),
+        rng_seed=3,
+    )
+    attack = agent.generate(_job())
+    assert attack.rationale == "deterministic-mutator-only"
+    assert attack.rendered_prompt  # deterministic mutators still applied
+
+
+@pytest.mark.unit
+def test_generate_uses_primary_when_primary_succeeds_even_if_fallback_wired() -> None:
+    """The fallback client is NEVER called when the primary succeeds — no
+    duplicate spend (sub-plan AgDR-0024)."""
+    primary = _FakeClean()
+    fallback = _FakeClean()
+    agent = RedTeamAgent(
+        SeedCatalog(),
+        _stack(),
+        AttackLineage(),
+        anthropic_client=primary,
+        fallback_client=fallback,
+        rng_seed=4,
+    )
+    agent.generate(_job())
+    assert primary.calls
+    assert not fallback.calls, "fallback must not fire when primary succeeds"

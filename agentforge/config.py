@@ -45,19 +45,20 @@ class OpenRouterConfig(BaseSettings):
 
     api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     base_url: str = Field(default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL")
-    # Sub-plan Next04: the AgDR-0013 default `cognitivecomputations/...:free`
-    # was de-listed from OpenRouter; live verify on 2026-05-15 returned 404.
-    # Defaulting to the largest currently-available `:free` SKU. Mainstream
-    # alignment means many Red Team prompts will be refused — refusals are
-    # logged as `refusal_observed` per AgDR-0001 and the deterministic
-    # mutators continue to drive the attack stream. AgDR-0022 records the
-    # rationale + the operator-pickable knobs.
+    # AgDR-0024 supersedes AgDR-0022: keep AgDR-0013's `:free` Dolphin as
+    # primary (live probe confirmed it's available — just upstream rate-
+    # limits with a Retry-After). The AgDR-0022 fallback paid Venice variant
+    # is the one that 404'd; AgDR-0024 moves the fallback to a separate
+    # second-tier OpenAI-direct client (see agentforge.redteam.openai_client).
+    # The `redteam_fallback_model` env knob still exists for OpenRouter's
+    # internal try-second-model path; defaulting to the same `:free` SKU is
+    # a no-op (OpenRouter retries the same model after the rate-limit window).
     redteam_model: str = Field(
-        default="nvidia/nemotron-3-super-120b-a12b:free",
+        default="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
         alias="OPENROUTER_REDTEAM_MODEL",
     )
     redteam_fallback_model: str = Field(
-        default="google/gemma-4-31b-it:free",
+        default="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
         alias="OPENROUTER_REDTEAM_FALLBACK_MODEL",
     )
     http_referer: str = Field(default="", alias="OPENROUTER_HTTP_REFERER")
@@ -87,6 +88,26 @@ class FireworksConfig(BaseSettings):
         default="accounts/fireworks/models/nous-hermes-3-llama-3-1-70b",
         alias="FIREWORKS_REDTEAM_FALLBACK_MODEL",
     )
+
+
+class OpenAIConfig(BaseSettings):
+    """OpenAI direct config — AgDR-0024 (Red Team second-tier fallback).
+
+    Used by `agentforge.redteam.openai_client.RedTeamOpenAIClient`. Only
+    fires when the OpenRouter primary path (per AgDR-0013) fully exhausts.
+    The operator's account has cybersecurity-research clearance, which the
+    system prompt cites explicitly to reduce refusal rate on Red Team
+    paraphrase requests.
+    """
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    redteam_model: str = Field(default="gpt-4o-mini", alias="OPENAI_REDTEAM_MODEL")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
 
 
 class LangfuseConfig(BaseSettings):
@@ -185,6 +206,7 @@ class MainConfig(BaseSettings):
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     openrouter: OpenRouterConfig = Field(default_factory=OpenRouterConfig)
     fireworks: FireworksConfig = Field(default_factory=FireworksConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     adapter: AdapterConfig = Field(default_factory=AdapterConfig)

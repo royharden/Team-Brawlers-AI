@@ -1,11 +1,13 @@
-"""CI guard - master plan §6 + AgDR-0001 + AgDR-0013.
+"""CI guard - master plan §6 + AgDR-0001 + AgDR-0013 + AgDR-0024.
 
 Two invariants:
 
-1. The `openai` SDK is imported ONLY by `agentforge/redteam/openrouter_client.py`.
-   Any other module under `agentforge/redteam/` importing `openai` is a bug.
+1. The `openai` SDK is imported ONLY by:
+   - `agentforge/redteam/openrouter_client.py` (AgDR-0013 — OpenRouter via
+     OpenAI-compatible API).
+   - `agentforge/redteam/openai_client.py`     (AgDR-0024 — direct OpenAI
+     second-tier fallback when OpenRouter rate-limits).
 2. The `anthropic` SDK is imported ONLY by `agentforge/redteam/anthropic_client.py`.
-   Any other module under `agentforge/redteam/` importing `anthropic` is a bug.
 
 These guardrails ensure provider boundaries stay clean and tests can swap one
 backend for another without dragging the other SDK along.
@@ -22,7 +24,7 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[3]
 REDTEAM_PKG_ROOT: Path = REPO_ROOT / "agentforge" / "redteam"
 
 _SANCTIONED_IMPORTERS: dict[str, set[str]] = {
-    "openai": {"openrouter_client.py"},
+    "openai": {"openrouter_client.py", "openai_client.py"},
     "anthropic": {"anthropic_client.py"},
 }
 
