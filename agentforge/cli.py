@@ -25,7 +25,6 @@ from typing import Any
 from uuid import uuid4
 
 import typer
-from loguru import logger
 
 from agentforge.judge.external_final import ExternalFinalJudge
 from agentforge.judge.rubrics import RubricRegistry
@@ -179,23 +178,66 @@ def smoke() -> None:
 
 @app.command()
 def attack(
-    category: str = typer.Option("", help="Attack category"),
-    strategy: str = typer.Option("", help="Attack strategy"),
-    count: int = typer.Option(1, help="Number of attacks"),
+    count: int = typer.Option(1, help="Max attacks in this batch (orchestrator caps at 10)."),
+    run_type: str = typer.Option(
+        "smoke",
+        "--run-type",
+        help="Budget band: smoke (lowest), seeded, or exploratory.",
+    ),
+    adapter: str = typer.Option(
+        "sidecar_direct",
+        "--adapter",
+        help="Target adapter: sidecar_direct (only path wired today).",
+    ),
 ) -> None:
-    """Orchestrator-driven attack run.
+    """Orchestrator-driven attack run -- one full multi-agent loop iteration.
 
-    Stub for now (full wiring lands in Phase 6 with the live target).
+    Wires the factory (``agentforge.orchestrator.factory.build_orchestrator``)
+    against the chosen target adapter, then runs one ``orchestrator.step()``.
+
+    Live LLM calls fire from the four Anthropic-backed agent Protocols
+    (Internal Judge / External Judge / Documentation / Planner) plus the
+    Red Team (OpenRouter Dolphin per AgDR-0013) -- subject to BudgetGuard.
+
+    AgDR-0015 wired ``sidecar_direct``; AgDR-0016 wired the four Anthropic
+    Protocols. Exit code: 0 on a complete batch (even if zero findings),
+    nonzero on an unrecoverable error.
     """
-    logger.info(
-        "tb attack(category={}, strategy={}, count={}) — not yet implemented (Phase 6)",
-        category,
-        strategy,
-        count,
-    )
+    from agentforge.orchestrator.factory import build_orchestrator
+    from agentforge.target_adapter.sidecar_direct import SidecarDirectAdapter
+
+    if adapter != "sidecar_direct":
+        typer.echo(
+            f"adapter={adapter!r} not wired; only 'sidecar_direct' available today. "
+            "openemr_gateway is the next sub-plan.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if run_type not in ("smoke", "seeded", "exploratory"):
+        typer.echo(f"--run-type must be smoke/seeded/exploratory, got {run_type!r}", err=True)
+        raise typer.Exit(code=2)
+
+    target_adapter = SidecarDirectAdapter()
+    orchestrator = build_orchestrator(target_adapter=target_adapter, run_type=run_type)  # type: ignore[arg-type]
+    batch_size = max(1, min(int(count), 10))
+
     typer.echo(
-        "tb attack: placeholder — orchestrator/target wiring lands with the "
-        "Phase 6 Docker-gated live-target tasks."
+        f"tb attack: run_type={run_type} adapter={adapter} batch_size={batch_size} "
+        f"-- one orchestrator.step() coming up."
+    )
+    result = orchestrator.step(batch_size=batch_size)
+    typer.echo(
+        json.dumps(
+            {
+                "attacks_executed": result.attacks_executed,
+                "findings_written": result.findings_written,
+                "halted": result.halted,
+                "halt_reason": (
+                    result.halt_reason.value if result.halt_reason is not None else None
+                ),
+            },
+            indent=2,
+        )
     )
     raise typer.Exit(code=0)
 

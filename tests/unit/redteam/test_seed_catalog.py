@@ -8,14 +8,39 @@ from agentforge.redteam.seed_catalog import SeedCatalog
 
 
 @pytest.mark.unit
-def test_all_returns_twelve_committed_seeds() -> None:
-    """`SeedCatalog.all()` returns the 12 committed seeds across the three categories."""
+def test_all_returns_committed_seeds_across_every_category() -> None:
+    """`SeedCatalog.all()` returns every committed seed across all 9 category YAMLs.
+
+    History: the original test pinned len==15 from when _CATEGORIES only
+    loaded 3 of the 9 committed YAMLs (prompt_injection, data_exfiltration,
+    tool_misuse). C3-full / AgDR-0016 widened _CATEGORIES to all 9 so the
+    orchestrator's planner can pick any of its 8 covered categories without
+    triggering "no seeds for category" errors. The exact count is
+    growing-and-shifting; we just assert "many" + per-category presence.
+    """
     cat = SeedCatalog()
     seeds = cat.all()
-    # Phase 5 added 3 PI indirect-injection seeds: 7 PI + 4 data_exfil + 4 tool_misuse = 15.
-    # SeedCatalog only loads the three Phase-1 categories; clinical_integrity and
-    # the other Phase-2+ categories are out of scope for this fixture.
-    assert len(seeds) == 15
+    # 15 was the Phase-2/5 baseline (PI + data_exfil + tool_misuse only). Now
+    # all 9 YAMLs load, so the total is ~3x. Floor of 30 leaves headroom for
+    # future Phase-6+ additions without flaking.
+    assert len(seeds) >= 30
+    # Every category that the orchestrator's coverage matrix recognizes must
+    # have at least one seed; otherwise the planner can route to a category
+    # the Red Team can't serve.
+    seeded_categories = {s.get("category") for s in seeds}
+    for required in (
+        "prompt_injection",
+        "data_exfiltration",
+        "tool_misuse",
+        "state_corruption",
+        "denial_of_service",
+        "identity_role",
+        "clinical_integrity",
+        "observability_leakage",
+    ):
+        assert (
+            required in seeded_categories
+        ), f"category {required!r} has zero seeds; orchestrator planner will fail on it"
 
 
 @pytest.mark.unit

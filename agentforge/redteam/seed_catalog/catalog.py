@@ -7,10 +7,24 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+# All 9 seed YAML files committed alongside this module. The original 3
+# (prompt_injection, data_exfiltration, tool_misuse) are the Phase 2 set;
+# the other 6 (state_corruption, denial_of_service, identity_role,
+# clinical_integrity, observability_leakage, platform_self_attack) shipped
+# in Phase 4 with the orchestrator's full 8-category coverage matrix -- but
+# this constant was never extended, so the orchestrator's planner would
+# pick categories that the catalog refused to serve. Fixed for C3-full
+# (Plan_wk3_Claude_Next01 / AgDR-0016).
 _CATEGORIES: tuple[str, ...] = (
     "prompt_injection",
     "data_exfiltration",
     "tool_misuse",
+    "state_corruption",
+    "denial_of_service",
+    "identity_role",
+    "clinical_integrity",
+    "observability_leakage",
+    "platform_self_attack",
 )
 
 
