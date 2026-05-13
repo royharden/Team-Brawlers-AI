@@ -151,20 +151,26 @@ def test_resolve_models_anthropic_all_found(monkeypatch: pytest.MonkeyPatch) -> 
         result = resolve_models(anthropic_client=fake)
         assert isinstance(result, ModelResolution)
         assert result.resolved["orchestrator"] == "claude-sonnet-4-6"
-        assert result.resolved["fast"] == "claude-haiku-4-6"
+        # Sub-plan Next05 §3: default fast model swapped to haiku-4-5
+        # (the real shipped SKU; haiku-4-6 was a phantom name that 404'd).
+        assert result.resolved["fast"] == "claude-haiku-4-5"
         assert result.substitutions == []
     finally:
         get_settings.cache_clear()
 
 
 @pytest.mark.unit
-def test_resolve_models_fast_falls_back_to_haiku_45() -> None:
-    # Pretend haiku-4-6 is not yet GA in the account — should fall back to 4-5.
-    """When `haiku-4-6` is absent, `resolve_models` falls back to `haiku-4-5` and records a substitution (master plan §6)."""
+def test_resolve_models_fast_resolves_to_haiku_45() -> None:
+    """When haiku-4-5 is the configured fast model AND it's published, the
+    resolver returns it directly with no substitution (sub-plan Next05 §3 —
+    haiku-4-5 IS the default; the haiku-4-6→4-5 substitution scenario this
+    test used to pin no longer applies because 4-6 is no longer the default).
+    """
     fake = _FakeAnthropicClient(["claude-sonnet-4-6", "claude-haiku-4-5"])
     result = resolve_models(anthropic_client=fake)
     assert result.resolved["fast"] == "claude-haiku-4-5"
-    assert any("fast:" in s for s in result.substitutions)
+    # No substitution — the configured model is published.
+    assert all("fast:" not in s for s in result.substitutions)
 
 
 @pytest.mark.unit

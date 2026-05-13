@@ -380,7 +380,7 @@ def test_cost_ledger_uses_real_tokens_when_wrapper_reports_them(
     pricing = PricingTable.from_yaml(pricing_path)
 
     # Pre-populate the wrappers' last_usage as if each had just been called.
-    haiku = _FakeWrapperWithUsage(1000, 100, "claude-haiku-4-6")
+    haiku = _FakeWrapperWithUsage(1000, 100, "claude-haiku-4-5")
     judge = _FakeWrapperWithUsage(1500, 200, "claude-sonnet-4-6")
 
     orch = _build_orchestrator(session_factory)
@@ -487,7 +487,7 @@ def test_end_run_total_cost_reflects_real_token_pricing(
     )
     pricing = PricingTable.from_yaml(pricing_path)
 
-    haiku = _FakeWrapperWithUsage(500, 50, "claude-haiku-4-6")
+    haiku = _FakeWrapperWithUsage(500, 50, "claude-haiku-4-5")
     orch = _build_orchestrator(session_factory)
     orch._pricing = pricing
     orch._usage_sources = {"internal_judge": haiku}

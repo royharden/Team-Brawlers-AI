@@ -152,7 +152,7 @@ class HaikuQuickVerdictClient:
     ``agentforge.judge.internal_progress``.
     """
 
-    def __init__(self, api_key: str, model: str = "claude-haiku-4-6") -> None:
+    def __init__(self, api_key: str, model: str = "claude-haiku-4-5") -> None:
         self._api_key = api_key
         self._model = model
         self._client: anthropic.Anthropic | None = None

@@ -70,7 +70,8 @@ DEFAULT_ASSUMPTIONS: dict[str, RoleAssumption] = {
     ),
     "internal_judge": RoleAssumption(
         provider="anthropic",
-        model="claude-haiku-4-6",
+        # Sub-plan Next05 §3: was claude-haiku-4-6 (404). Real SKU.
+        model="claude-haiku-4-5",
         input_tokens=1000,
         output_tokens=100,
         calls_per_run=Decimal("0.3"),

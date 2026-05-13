@@ -359,13 +359,13 @@ def test_haiku_records_token_usage_on_success() -> None:
     after a successful call (sub-plan Next03 §4.2)."""
     canned = json.dumps({"passed": True, "confidence": 0.9, "rationale": "ok"})
     with _patch_anthropic(canned_text=canned, usage=_FakeUsage(input_tokens=42, output_tokens=12)):
-        client = HaikuQuickVerdictClient(api_key="k", model="claude-haiku-4-6")
+        client = HaikuQuickVerdictClient(api_key="k", model="claude-haiku-4-5")
         assert client.last_usage is None
         client.quick_verdict("rb", {"prompt": "x"}, {"text": "y"})
     assert isinstance(client.last_usage, TokenUsage)
     assert client.last_usage.input_tokens == 42
     assert client.last_usage.output_tokens == 12
-    assert client.last_usage.model == "claude-haiku-4-6"
+    assert client.last_usage.model == "claude-haiku-4-5"
 
 
 @pytest.mark.unit

@@ -144,7 +144,7 @@ class OrchestratorAgent:
     _COST_ESTIMATE_EXTERNAL_JUDGE_USD: Decimal = Decimal("0.024000")
     _COST_ESTIMATE_DOC_AGENT_USD: Decimal = Decimal("0.036000")
     _COST_ESTIMATE_REDTEAM_USD: Decimal = Decimal("0.000000")  # OpenRouter :free
-    _DEFAULT_INTERNAL_JUDGE_MODEL: str = "claude-haiku-4-6"
+    _DEFAULT_INTERNAL_JUDGE_MODEL: str = "claude-haiku-4-5"
     _DEFAULT_EXTERNAL_JUDGE_MODEL: str = "claude-sonnet-4-6"
     _DEFAULT_DOC_AGENT_MODEL: str = "claude-sonnet-4-6"
     _DEFAULT_REDTEAM_MODEL: str = "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"

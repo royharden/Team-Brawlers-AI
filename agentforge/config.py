@@ -27,7 +27,11 @@ class AnthropicConfig(BaseSettings):
     orchestrator_model: str = Field(
         default="claude-sonnet-4-6", alias="ANTHROPIC_ORCHESTRATOR_MODEL"
     )
-    fast_model: str = Field(default="claude-haiku-4-6", alias="ANTHROPIC_FAST_MODEL")
+    # Sub-plan Next05 §3: was `claude-haiku-4-6` (no such SKU at Anthropic
+    # — every InternalProgressJudge call returned 404, judge degraded to
+    # abstain). Live probe of `claude-haiku-4-5` succeeded (resolves to
+    # `claude-haiku-4-5-20251001`).
+    fast_model: str = Field(default="claude-haiku-4-5", alias="ANTHROPIC_FAST_MODEL")
     fast_fallback_model: str = Field(
         default="claude-haiku-4-5", alias="ANTHROPIC_FAST_FALLBACK_MODEL"
     )
