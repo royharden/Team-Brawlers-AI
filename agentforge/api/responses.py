@@ -255,6 +255,22 @@ class ApprovalQueueResponse(BaseModel):
     items: list[ApprovalQueueItem] = Field(default_factory=list)
 
 
+# --- Refusal rate (sub-plan Next05 §5) ---------------------------------------
+
+
+class RefusalRateResponse(BaseModel):
+    """Per-call refusal-rate snapshot computed from the most-recent N
+    attack traces. Refusal here = Co-Pilot target refused / declined the
+    attack (the defense working as designed).
+    """
+
+    n_attacks_scanned: int = 0
+    n_refusals: int = 0
+    refusal_rate: float = 0.0
+    by_category: dict[str, float] = Field(default_factory=dict)
+    by_strategy: dict[str, float] = Field(default_factory=dict)
+
+
 __all__ = [
     "HealthResponse",
     "DashboardResponse",
@@ -285,4 +301,5 @@ __all__ = [
     "DefenseDeltaTrendResponse",
     "ApprovalQueueItem",
     "ApprovalQueueResponse",
+    "RefusalRateResponse",
 ]

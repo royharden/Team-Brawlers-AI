@@ -60,6 +60,22 @@ def test_dashboard_runs_reports_paths() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_refusal_rate_hits_correct_path() -> None:
+    """`AgentForgeClient.refusal_rate(last)` GETs `/v1/refusal-rate?last=N`
+    (sub-plan Next05 §5)."""
+    payload = {"n_attacks_scanned": 10, "n_refusals": 3, "refusal_rate": 0.3}
+    route = respx.get(f"{BASE_URL}/v1/refusal-rate").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+    c = AgentForgeClient(base_url=BASE_URL)
+    out = c.refusal_rate(last=10)
+    assert out == payload
+    assert route.called
+    assert route.calls.last.request.url.params["last"] == "10"
+
+
+@pytest.mark.unit
+@respx.mock
 def test_start_run_and_get_live_state_paths() -> None:
     """`AgentForgeClient.start_run` POSTs `/v1/runs/start?run_type=...&count=...`
     and `get_run_live_state` GETs `/v1/runs/{run_id}/state` (sub-plan Next05 §1)."""

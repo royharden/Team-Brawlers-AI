@@ -73,6 +73,11 @@ class AgentForgeClient:
     def get_run_live_state(self, run_id: str) -> dict[str, Any]:
         return self._get_json(f"/v1/runs/{run_id}/state")
 
+    # --- refusal-rate ---------------------------------------------------
+
+    def refusal_rate(self, last: int = 100) -> dict[str, Any]:
+        return self._get_json("/v1/refusal-rate", last=last)
+
     # --- reports ---------------------------------------------------------
 
     def list_reports(

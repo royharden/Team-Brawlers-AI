@@ -21,6 +21,7 @@ from agentforge.api import (
     routes_delta,
     routes_judge,
     routes_lineage,
+    routes_refusal,
     routes_regression,
     routes_reports,
     routes_runs,
@@ -62,6 +63,7 @@ def _build_app() -> FastAPI:
     app.include_router(routes_dashboard.router, prefix="/v1", tags=["dashboard"])
     app.include_router(routes_approval.router, prefix="/v1", tags=["approval"])
     app.include_router(routes_judge.router, prefix="/v1", tags=["judge"])
+    app.include_router(routes_refusal.router, prefix="/v1", tags=["refusal"])
 
     return app
 

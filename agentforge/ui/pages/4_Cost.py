@@ -36,8 +36,23 @@ def render() -> None:
         today = {}
 
     st.subheader("Today")
-    st.metric("Spend (USD)", today.get("spend_usd", "0"))
-    st.metric("Calls", today.get("n_calls", 0))
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Spend (USD)", today.get("spend_usd", "0"))
+    c2.metric("Calls", today.get("n_calls", 0))
+    # Sub-plan Next05 §5: target-refusal rate over the last 100 attacks.
+    # High refusal rate = the Co-Pilot's defenses are landing.
+    try:
+        refusal = client.refusal_rate(last=100)
+        rate = float(refusal.get("refusal_rate") or 0.0)
+        n_scanned = int(refusal.get("n_attacks_scanned") or 0)
+        c3.metric(
+            "Target refusal rate",
+            f"{rate:.0%}",
+            help=f"Over the last {n_scanned} persisted attacks. Higher = stronger defense.",
+        )
+    except Exception as exc:
+        c3.error(f"refusal-rate unavailable: {exc}")
+
     by_role = today.get("by_role") or {}
     if by_role:
         st.write(by_role)

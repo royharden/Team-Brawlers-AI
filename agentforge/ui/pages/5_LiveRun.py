@@ -46,11 +46,22 @@ def _render_dashboard_strip(client: AgentForgeClient) -> None:
         return
     totals = dash.get("totals", {})
     cov = dash.get("coverage_summary", {})
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Runs", totals.get("runs", 0))
     c2.metric("Attacks", totals.get("attacks", 0))
     c3.metric("Coverage", f"{cov.get('covered_cells', 0)}/{cov.get('total_cells', 72)}")
     c4.metric("Spend (USD)", str(totals.get("spend_usd", "0"))[:8])
+    # Sub-plan Next05 §5: target-refusal-rate chip alongside the totals.
+    try:
+        refusal = client.refusal_rate(last=100)
+        rate = float(refusal.get("refusal_rate") or 0.0)
+        c5.metric(
+            "Refusal rate",
+            f"{rate:.0%}",
+            help=f"Last {int(refusal.get('n_attacks_scanned') or 0)} attacks. Higher = stronger defense.",
+        )
+    except Exception:
+        c5.metric("Refusal rate", "?")
 
 
 def _render_run_state(state: dict[str, Any]) -> None:
