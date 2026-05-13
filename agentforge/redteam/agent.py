@@ -88,9 +88,7 @@ class RedTeamAgent:
             applied_ids: list[str] = []
         else:
             base_prompt = str(seed.get("prompt", ""))
-            rendered_prompt, applied_ids = self._mutators.compose(
-                seed, mutator_ids, seed_int
-            )
+            rendered_prompt, applied_ids = self._mutators.compose(seed, mutator_ids, seed_int)
             if not rendered_prompt:
                 rendered_prompt = base_prompt
 
@@ -105,13 +103,11 @@ class RedTeamAgent:
                 if refusal_info is not None:
                     refusal_observed = True
                     refusal_reframing = refusal_info.suggested_reframing
-                    rationale = (
-                        f"paraphrase refused; marker={refusal_info.marker_matched!r}"
-                    )
+                    rationale = f"paraphrase refused; marker={refusal_info.marker_matched!r}"
                 else:
                     rendered_prompt = paraphrased
                     rationale = "anthropic-paraphrase"
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Paraphrase failed; falling back to deterministic: {}", exc)
 
         attack = MutatedAttack(
@@ -170,13 +166,12 @@ class RedTeamAgent:
                     refusal_observed = True
                     refusal_reframing = refusal_info.suggested_reframing
                     rationale = (
-                        f"escalation-paraphrase refused; "
-                        f"marker={refusal_info.marker_matched!r}"
+                        f"escalation-paraphrase refused; " f"marker={refusal_info.marker_matched!r}"
                     )
                 else:
                     rendered_prompt = paraphrased
                     rationale = "anthropic-paraphrase (escalation)"
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Escalation paraphrase failed: {}", exc)
 
         attack = MutatedAttack(
@@ -220,9 +215,7 @@ class RedTeamAgent:
             raise ValueError(f"No seeds in catalog for category={job.category!r}")
         return self._rng.choice(candidates)
 
-    def _resolve_directives(
-        self, directives: list[str], seed: dict[str, Any]
-    ) -> list[str]:
+    def _resolve_directives(self, directives: list[str], seed: dict[str, Any]) -> list[str]:
         """Map plan-level directive names like 'wrap_role_play_doctor' to the
         registered mutator ids. Unknown directives are passed through; the
         stack silently skips unregistered ids.

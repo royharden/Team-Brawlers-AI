@@ -81,12 +81,8 @@ class FloorEnforcer:
         previous_batch: ReplayBatch | None = None,
     ) -> FloorResult:
         known = set(self._floor.known_failing_cases)
-        prev_failed = (
-            set(previous_batch.cases_failed_as_expected) if previous_batch else set()
-        )
-        prev_passed = (
-            set(previous_batch.cases_passed_unexpectedly) if previous_batch else set()
-        )
+        prev_failed = set(previous_batch.cases_failed_as_expected) if previous_batch else set()
+        set(previous_batch.cases_passed_unexpectedly) if previous_batch else set()
 
         # Currently failing in this batch.
         now_failing = set(batch.cases_failed_as_expected)
@@ -107,8 +103,8 @@ class FloorEnforcer:
             )
 
         # Unexpected passes: failing previously, passing now. Fix candidates!
-        unexpected_passes = sorted(now_passing & prev_failed) if previous_batch else sorted(
-            now_passing
+        unexpected_passes = (
+            sorted(now_passing & prev_failed) if previous_batch else sorted(now_passing)
         )
 
         exceeded = len(new_regs) > self._floor.max_new_regressions_per_run

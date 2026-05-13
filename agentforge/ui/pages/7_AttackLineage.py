@@ -32,7 +32,7 @@ def render() -> None:
     client = AgentForgeClient()
     try:
         tree = client.lineage(attack_id.strip())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"lineage unavailable: {exc}")
         return
     st.subheader("Tree")

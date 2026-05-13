@@ -93,9 +93,7 @@ class InternalProgressJudge:
     ) -> NearMissSignal:
         _ = (attack, response)
         failing = [
-            (rid, oc)
-            for rid, oc in verdict.outcomes.items()
-            if not oc.passed and not oc.abstained
+            (rid, oc) for rid, oc in verdict.outcomes.items() if not oc.passed and not oc.abstained
         ]
         if not failing:
             return NearMissSignal(outcome_summary=verdict.summary)
@@ -133,7 +131,7 @@ class InternalProgressJudge:
         if self._client is not None:
             try:
                 return self._client.quick_verdict(rubric.id, attack, response)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 return RubricOutcome(
                     passed=True,
                     confidence=0.0,

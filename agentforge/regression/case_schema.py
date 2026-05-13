@@ -20,7 +20,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 # ---------------------------------------------------------------------- types
 
 
@@ -65,9 +64,7 @@ class RegressionCase(BaseModel):
     @classmethod
     def _non_empty(cls, v: str) -> str:
         if not v or not v.strip():
-            raise ValueError(
-                "what_bug_this_catches must be non-empty (master plan §13)"
-            )
+            raise ValueError("what_bug_this_catches must be non-empty (master plan §13)")
         return v
 
     @classmethod

@@ -6,7 +6,8 @@ modules and exposes them by category for the judge layer to iterate.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from agentforge.judge.rubrics import (
     clinical_integrity as _clinical_integrity,

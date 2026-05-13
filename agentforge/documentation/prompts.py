@@ -9,7 +9,6 @@ executed.
 
 from __future__ import annotations
 
-
 DOC_SYSTEM_PROMPT: str = """\
 You are a senior application-security engineer writing a vulnerability
 report (VR) for an internal red-team finding against an AI clinical

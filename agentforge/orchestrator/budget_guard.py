@@ -15,12 +15,12 @@ until a Phase-7 reset path lands (out of scope here).
 from __future__ import annotations
 
 from collections import deque
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from agentforge.config import BudgetConfig
 
@@ -81,7 +81,7 @@ class BudgetGuard:
         self._run_type: RunType = run_type
         self._spend_usd: Decimal = Decimal("0")
         self._spend_usd_today: Decimal = Decimal("0")
-        self._today: date = datetime.now(timezone.utc).date()
+        self._today: date = datetime.now(UTC).date()
         self._attempts_since_last_finding: int = 0
         self._spend_since_last_finding_usd: Decimal = Decimal("0")
         # Rolling window of (was_error: bool) ticks.
@@ -95,7 +95,7 @@ class BudgetGuard:
         """Idempotent. Returns False once any halt condition has fired."""
         # Recompute the per-day counter on day-rollover so a long-running run
         # that crosses UTC midnight does not stay artificially blocked.
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         if today != self._today:
             self._today = today
             self._spend_usd_today = Decimal("0")
@@ -127,7 +127,7 @@ class BudgetGuard:
         if self._halt_reason is not None:
             return
         # Roll the per-day bucket forward if needed.
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         if today != self._today:
             self._today = today
             self._spend_usd_today = Decimal("0")

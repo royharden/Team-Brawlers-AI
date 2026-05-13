@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -31,9 +32,7 @@ from agentforge.observability.dashboards import (
 router = APIRouter()
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_JUDGE_META_PATH = (
-    _REPO_ROOT / "evals" / "meta_eval" / "judge_external_final_v1_metrics.json"
-)
+_JUDGE_META_PATH = _REPO_ROOT / "evals" / "meta_eval" / "judge_external_final_v1_metrics.json"
 
 
 def _judge_floor_met() -> dict[str, bool]:
@@ -55,33 +54,27 @@ def get_dashboard(
     """Aggregated dashboard data (totals + coverage + latest run + judge floor)."""
     n_runs = session.query(Run).count()
     n_attacks = session.query(AttackJob).count()
-    n_vrs_open = (
-        session.query(VulnReport).filter(VulnReport.fix_status != "fixed").count()
-    )
-    n_vrs_fixed = (
-        session.query(VulnReport).filter(VulnReport.fix_status == "fixed").count()
-    )
+    n_vrs_open = session.query(VulnReport).filter(VulnReport.fix_status != "fixed").count()
+    n_vrs_fixed = session.query(VulnReport).filter(VulnReport.fix_status == "fixed").count()
 
     spend = aggregate_run_costs(session)
     total_spend: Decimal = spend["total"]
 
     # Coverage summary — count cells with attempts > 0.
     coverage_rows = session.query(CoverageCellRow).all()
-    cells = [
+    cells: list[dict[str, Any]] = [
         {
             "category": r.category,
             "strategy": r.strategy,
-            "attempts": r.attempts or 0,
+            "attempts": int(r.attempts or 0),
         }
         for r in coverage_rows
     ]
-    covered = sum(1 for c in cells if c["attempts"] > 0)
+    covered = sum(1 for c in cells if int(c["attempts"]) > 0)
     pct = coverage_pct(cells)
 
     # Latest run.
-    latest_row = (
-        session.query(Run).order_by(Run.started_at.desc(), Run.id.desc()).first()
-    )
+    latest_row = session.query(Run).order_by(Run.started_at.desc(), Run.id.desc()).first()
     latest_run: LatestRun | None = None
     if latest_row is not None:
         latest_run = LatestRun(
@@ -95,9 +88,7 @@ def get_dashboard(
     # Latest fingerprint snapshot.
     latest_snap = (
         session.query(DefenseDeltaSnapshot)
-        .order_by(
-            DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc()
-        )
+        .order_by(DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc())
         .first()
     )
     latest_fingerprint = latest_snap.fingerprint if latest_snap is not None else None

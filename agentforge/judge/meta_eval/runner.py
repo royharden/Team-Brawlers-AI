@@ -13,6 +13,7 @@ rubrics, so the External Final Judge's no-client path produces a stable verdict.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -30,7 +31,6 @@ from agentforge.judge.meta_eval.metrics import (
 )
 from agentforge.judge.rubrics import RubricRegistry
 from agentforge.memory.schemas import AdapterResponse, MutatedAttack
-
 
 DEFAULT_OUTPUT_DIR: Path = Path("evals") / "meta_eval"
 DEFAULT_GOLD_SET_PATH: Path = Path("evals") / "meta_eval" / "gold_set" / "v1.jsonl"
@@ -128,10 +128,8 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
             fh.write("\n")
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
@@ -167,13 +165,15 @@ class MetaEvalRunner:
         for case in gold_set.cases:
             attack, response = _build_envelope(case)
             if layer == "external_final":
-                verdict = self._external.score(
-                    attack, response, case.expected_safe_behavior
-                )
+                verdict = self._external.score(attack, response, case.expected_safe_behavior)
                 failed_rubrics = list(verdict.failed_rubrics)
             else:
                 assert self._internal is not None
-                verdict = self._internal.score(  # type: ignore[attr-defined]
+                # InternalProgressJudge and ExternalFinalJudge have different score()
+                # signatures + return types — both fields ("outcomes" + "passed/abstained")
+                # are dynamic on the verdict subclass. Suppressed at-site rather than
+                # union-typed because each branch only reads its own attrs.
+                verdict = self._internal.score(  # type: ignore[attr-defined,call-arg,assignment]
                     attack, response, case.expected_safe_behavior
                 )
                 failed_rubrics = [
@@ -192,10 +192,7 @@ class MetaEvalRunner:
             floor=resolved_floor,
         )
 
-        out_path = (
-            self._output_dir
-            / f"judge_{layer}_{gold_set.version}_metrics.json"
-        )
+        out_path = self._output_dir / f"judge_{layer}_{gold_set.version}_metrics.json"
         payload: dict[str, Any] = {
             "layer": metrics.layer,
             "gold_set_version": gold_set.version,
@@ -203,8 +200,7 @@ class MetaEvalRunner:
             "metrics": metrics.model_dump(),
             "floor": resolved_floor,
             "predictions": [
-                {"case_id": cid, "predicted_label": label}
-                for cid, label in predictions
+                {"case_id": cid, "predicted_label": label} for cid, label in predictions
             ],
         }
         _atomic_write_json(out_path, payload)
@@ -226,9 +222,7 @@ def run_meta_eval(
     deterministic rubrics.
     """
     if layer not in ("external_final", "internal_progress"):
-        raise ValueError(
-            f"layer must be 'external_final' or 'internal_progress'; got {layer!r}"
-        )
+        raise ValueError(f"layer must be 'external_final' or 'internal_progress'; got {layer!r}")
     if external_judge is None:
         external_judge = ExternalFinalJudge(RubricRegistry())
     path = Path(gold_set_path) if gold_set_path is not None else DEFAULT_GOLD_SET_PATH

@@ -44,9 +44,7 @@ class OpenRouterConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
-    base_url: str = Field(
-        default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
-    )
+    base_url: str = Field(default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL")
     redteam_model: str = Field(
         default="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
         alias="OPENROUTER_REDTEAM_MODEL",
@@ -174,9 +172,7 @@ class MainConfig(BaseSettings):
     platform_db_url: str = Field(
         default="sqlite:///./data/agentforge.sqlite", alias="PLATFORM_DB_URL"
     )
-    agent_message_signing_secret: str = Field(
-        default="", alias="AGENT_MESSAGE_SIGNING_SECRET"
-    )
+    agent_message_signing_secret: str = Field(default="", alias="AGENT_MESSAGE_SIGNING_SECRET")
     pricing_yml_freshness_days: int = Field(default=30, alias="PRICING_YML_FRESHNESS_DAYS")
 
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)

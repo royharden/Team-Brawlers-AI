@@ -55,9 +55,7 @@ _DOB_US_RE: Final[re.Pattern[str]] = re.compile(
 )
 
 # MRN-like patterns: "MRN-12345", "MRN: 12345", "MR12345".
-_MRN_DASH_RE: Final[re.Pattern[str]] = re.compile(
-    r"\bMRN[-:]?\s?\d{4,}\b", re.IGNORECASE
-)
+_MRN_DASH_RE: Final[re.Pattern[str]] = re.compile(r"\bMRN[-:]?\s?\d{4,}\b", re.IGNORECASE)
 _MRN_PREFIX_RE: Final[re.Pattern[str]] = re.compile(r"\bMR\d{4,}\b")
 
 # Credit-card-shaped digit groups: 13-19 digit runs, optionally split by spaces
@@ -140,7 +138,7 @@ def scrub_phi_in_obj(obj: Any) -> Any:
     if isinstance(obj, Mapping):
         return {k: scrub_phi_in_obj(v) for k, v in obj.items()}
     # bytes and bytearray are Sequence but should not be recursed into.
-    if isinstance(obj, (bytes, bytearray)):
+    if isinstance(obj, bytes | bytearray):
         return obj
     if isinstance(obj, Sequence):
         return [scrub_phi_in_obj(v) for v in obj]

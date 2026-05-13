@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -41,7 +41,7 @@ class MutatedAttack(BaseModel):
     rationale: str = "deterministic-mutator-only"
     refusal_observed: bool = False
     refusal_reframing_suggestion: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     seed_used: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")

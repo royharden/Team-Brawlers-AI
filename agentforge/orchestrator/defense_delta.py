@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -65,7 +65,7 @@ class DefenseDelta:
             total_passed += c.passes
 
         aggregate = (total_passed / total_decided) if total_decided > 0 else 0.0
-        snapshot_at = datetime.now(timezone.utc)
+        snapshot_at = datetime.now(UTC)
 
         session = self._session_factory()
         try:
@@ -120,8 +120,7 @@ class DefenseDelta:
         snap_b = self._latest_for(fp_b)
         keys = set(snap_a.by_cell.keys()) | set(snap_b.by_cell.keys())
         return {
-            key: snap_b.by_cell.get(key, 0.0) - snap_a.by_cell.get(key, 0.0)
-            for key in sorted(keys)
+            key: snap_b.by_cell.get(key, 0.0) - snap_a.by_cell.get(key, 0.0) for key in sorted(keys)
         }
 
     # ----------------------------------------------------------------- utils
@@ -138,7 +137,7 @@ class DefenseDelta:
             if row is None:
                 return DefenseDeltaSnapshot(
                     target_fingerprint=fingerprint,
-                    snapshot_at=datetime.now(timezone.utc),
+                    snapshot_at=datetime.now(UTC),
                     aggregate_pass_rate=0.0,
                     by_cell={},
                 )

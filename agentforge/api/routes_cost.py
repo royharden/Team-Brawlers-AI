@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,7 +29,7 @@ def cost_today(
     session: Session = Depends(get_session),
 ) -> CostTodayResponse:
     """Aggregate cost-ledger spend for today (UTC) by agent_role."""
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     agg = aggregate_run_costs(session, since_date=today)
     return CostTodayResponse(
         spend_usd=str(agg["total"]),
@@ -67,9 +67,7 @@ def cost_projections() -> CostProjectionsResponse:
                 total_usd=str(s.get("total_usd", "0")),
                 infra_monthly_usd=str(s.get("infra_monthly_usd", "0")),
                 architecture_notes=str(s.get("architecture_notes", "")),
-                by_role_usd={
-                    k: str(v) for k, v in (s.get("by_role_usd") or {}).items()
-                },
+                by_role_usd={k: str(v) for k, v in (s.get("by_role_usd") or {}).items()},
             )
         )
     return CostProjectionsResponse(

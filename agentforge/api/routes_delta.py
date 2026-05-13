@@ -34,9 +34,7 @@ def trend(
     """Most-recent ``last`` snapshots ordered by snapshot_at desc."""
     rows = (
         session.query(DefenseDeltaSnapshot)
-        .order_by(
-            DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc()
-        )
+        .order_by(DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc())
         .limit(last)
         .all()
     )
@@ -52,13 +50,9 @@ def snapshot_for_fingerprint(
     row = (
         session.query(DefenseDeltaSnapshot)
         .filter_by(fingerprint=fingerprint)
-        .order_by(
-            DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc()
-        )
+        .order_by(DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc())
         .first()
     )
     if row is None:
-        raise HTTPException(
-            status_code=404, detail=f"no snapshot for fingerprint: {fingerprint}"
-        )
+        raise HTTPException(status_code=404, detail=f"no snapshot for fingerprint: {fingerprint}")
     return _row_to_resp(row)

@@ -65,10 +65,7 @@ def detect_refusal(text: str) -> RefusalInfo | None:
             doc = json.loads(stripped)
         except json.JSONDecodeError:
             doc = None
-        if (
-            isinstance(doc, dict)
-            and doc.get(EXPLICIT_REFUSAL_JSON_KEY) == EXPLICIT_REFUSAL_VALUE
-        ):
+        if isinstance(doc, dict) and doc.get(EXPLICIT_REFUSAL_JSON_KEY) == EXPLICIT_REFUSAL_VALUE:
             return RefusalInfo(
                 refusal_text=text,
                 suggested_reframing=_suggest_reframing(text),

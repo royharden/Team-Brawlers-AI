@@ -20,7 +20,6 @@ from __future__ import annotations
 import json
 import platform
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -33,7 +32,7 @@ from agentforge.judge.rubrics import RubricRegistry
 from agentforge.memory.schemas import AdapterResponse
 from agentforge.regression.case_schema import RegressionCase
 from agentforge.regression.floor import FloorEnforcer
-from agentforge.regression.replay import Replay, TargetExecutor
+from agentforge.regression.replay import Replay
 from agentforge.regression.runner import RegressionRunner
 
 app = typer.Typer(help="AgentForge CLI — multi-agent adversarial AI security platform.")
@@ -137,9 +136,7 @@ class _MockReplay(Replay):
         return super().run_case(case, target_fingerprint=target_fingerprint)
 
 
-def _build_mock_runner(
-    mock_dir: Path, floor_path: Path
-) -> RegressionRunner:
+def _build_mock_runner(mock_dir: Path, floor_path: Path) -> RegressionRunner:
     target = _MockTargetExecutor(mock_dir)
     judge = ExternalFinalJudge(rubric_registry=RubricRegistry())
     replay = _MockReplay(target_executor=target, external_judge=judge)
@@ -192,7 +189,9 @@ def attack(
     """
     logger.info(
         "tb attack(category={}, strategy={}, count={}) — not yet implemented (Phase 6)",
-        category, strategy, count,
+        category,
+        strategy,
+        count,
     )
     typer.echo(
         "tb attack: placeholder — orchestrator/target wiring lands with the "
@@ -241,7 +240,9 @@ def regress(
         typer.echo(json.dumps(outcome.model_dump(mode="json"), indent=2))
         # Single-case run doesn't run floor; exit 0 if the case matched
         # expected (still fails), 1 otherwise.
-        raise typer.Exit(code=0 if outcome.matched_expected or outcome.observed_outcome == "error" else 1)
+        raise typer.Exit(
+            code=0 if outcome.matched_expected or outcome.observed_outcome == "error" else 1
+        )
 
     batch, floor_result = runner.run_all(target_fingerprint=fingerprint)
     typer.echo(floor_result.summary)
@@ -277,9 +278,7 @@ def report(
 
 @app.command("meta-eval")
 def meta_eval(
-    layer: str = typer.Option(
-        "external_final", "--layer", help="Judge layer to meta-evaluate"
-    ),
+    layer: str = typer.Option("external_final", "--layer", help="Judge layer to meta-evaluate"),
 ) -> None:
     """Run judge meta-eval against the gold set.
 
@@ -289,16 +288,19 @@ def meta_eval(
     message and exit 0 so this command never blocks CI in Phase 5.
     """
     try:
-        from agentforge.judge.meta_eval.runner import run_meta_eval  # type: ignore[import-not-found]
+        from agentforge.judge.meta_eval.runner import (
+            run_meta_eval,  # type: ignore[import-not-found]
+        )
     except ImportError:
         typer.echo("meta-eval module not implemented (Phase 6)")
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=0) from None
     try:
         result = run_meta_eval(layer=layer)
     except FileNotFoundError as exc:
         typer.echo(f"meta-eval gold set unavailable: {exc}")
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=0) from None
     # JudgeMetrics is a Pydantic model — dump it.
+    payload: Any
     try:
         payload = result.model_dump(mode="json")  # type: ignore[attr-defined]
     except AttributeError:

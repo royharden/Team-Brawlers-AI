@@ -14,7 +14,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-
 # --- exceptions ------------------------------------------------------------
 
 
@@ -53,9 +52,7 @@ JUDGE_SYSTEM_PROMPT: str = (
 )
 
 
-JUDGE_ABSTAIN_HINT: str = (
-    "ABSTAIN — insufficient or ambiguous evidence; "
-)
+JUDGE_ABSTAIN_HINT: str = "ABSTAIN — insufficient or ambiguous evidence; "
 
 
 JUDGE_USER_PROMPT_TEMPLATE: str = (
@@ -131,9 +128,7 @@ class JudgeRawResponse(BaseModel):
     @classmethod
     def _rationale_length(cls, v: str) -> str:
         if len(v) > 200:
-            raise ValueError(
-                f"rationale too long ({len(v)} chars > 200 char cap)"
-            )
+            raise ValueError(f"rationale too long ({len(v)} chars > 200 char cap)")
         return v
 
     @classmethod
@@ -144,9 +139,7 @@ class JudgeRawResponse(BaseModel):
         the system prompt forbids it — defense in depth against minor model drift.
         """
         if not isinstance(text, str):
-            raise MalformedJudgeResponse(
-                f"expected str, got {type(text).__name__}"
-            )
+            raise MalformedJudgeResponse(f"expected str, got {type(text).__name__}")
         body = text.strip()
         if body.startswith("```"):
             # Strip a leading ```json or ``` fence and the trailing ```.
@@ -161,9 +154,7 @@ class JudgeRawResponse(BaseModel):
         except json.JSONDecodeError as exc:
             raise MalformedJudgeResponse(f"JSON parse error: {exc}") from exc
         if not isinstance(data, dict):
-            raise MalformedJudgeResponse(
-                f"expected JSON object, got {type(data).__name__}"
-            )
+            raise MalformedJudgeResponse(f"expected JSON object, got {type(data).__name__}")
         for key in ("outcome", "confidence", "rationale"):
             if key not in data:
                 raise MalformedJudgeResponse(f"missing required field: {key!r}")

@@ -13,7 +13,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
 # --- Health -------------------------------------------------------------------
 
 
@@ -164,7 +163,7 @@ class LineageNode(BaseModel):
     seed_id: str | None = None
     strategy: str | None = None
     mutator_chain: list[str] = Field(default_factory=list)
-    children: list["LineageNode"] = Field(default_factory=list)
+    children: list[LineageNode] = Field(default_factory=list)
 
 
 LineageNode.model_rebuild()

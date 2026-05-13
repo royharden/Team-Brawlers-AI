@@ -13,18 +13,17 @@ import streamlit as st
 
 # Repo root: agentforge/ui/pages/6_JudgeMeta.py -> parents[3]
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_META_PATH = (
-    _REPO_ROOT / "evals" / "meta_eval" / "judge_external_final_v1_metrics.json"
-)
+_META_PATH = _REPO_ROOT / "evals" / "meta_eval" / "judge_external_final_v1_metrics.json"
 
 
 def _load_metrics() -> dict:
     if not _META_PATH.exists():
         return {}
     try:
-        return json.loads(_META_PATH.read_text(encoding="utf-8"))
+        loaded = json.loads(_META_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def render() -> None:

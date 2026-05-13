@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
@@ -43,7 +43,6 @@ from agentforge.orchestrator.prompts import (
     ORCHESTRATOR_USER_PROMPT_TEMPLATE,
 )
 from agentforge.redteam.agent import RedTeamAgent
-
 
 # ---------------------------------------------------------------------- types
 
@@ -160,9 +159,7 @@ class OrchestratorAgent:
                 "attempts": c.attempts,
                 "passes": c.passes,
                 "failures": c.failures,
-                "last_attempt_at": (
-                    c.last_attempt_at.isoformat() if c.last_attempt_at else None
-                ),
+                "last_attempt_at": (c.last_attempt_at.isoformat() if c.last_attempt_at else None),
                 "last_pass_rate": c.last_pass_rate,
             }
             for c in cells
@@ -172,13 +169,9 @@ class OrchestratorAgent:
             "spend_usd": str(budget_state.spend_usd),
             "run_type": budget_state.run_type,
             "halted": budget_state.halted,
-            "halt_reason": (
-                budget_state.halt_reason.value if budget_state.halt_reason else None
-            ),
+            "halt_reason": (budget_state.halt_reason.value if budget_state.halt_reason else None),
             "attempts_since_last_finding": budget_state.attempts_since_last_finding,
-            "spend_since_last_finding_usd": str(
-                budget_state.spend_since_last_finding_usd
-            ),
+            "spend_since_last_finding_usd": str(budget_state.spend_since_last_finding_usd),
         }
 
         if self._client is not None:
@@ -198,7 +191,7 @@ class OrchestratorAgent:
                 resp = self._client.plan_batch(ORCHESTRATOR_SYSTEM_PROMPT, user)
                 # Honor batch_size — even if Sonnet returns more, cap it.
                 return list(resp.selections)[:batch_size]
-            except Exception as exc:  # noqa: BLE001 — defensive: fall back
+            except Exception as exc:
                 logger.warning(
                     "Orchestrator planner client failed, falling back to "
                     "deterministic heuristic: {}",
@@ -227,20 +220,16 @@ class OrchestratorAgent:
 
             job = AttackJob(
                 id=uuid.uuid4(),
-                run_id=uuid.UUID(self._run_id)
-                if _is_uuid(self._run_id)
-                else uuid.uuid4(),
+                run_id=uuid.UUID(self._run_id) if _is_uuid(self._run_id) else uuid.uuid4(),
                 category=selection.category,
                 strategy=selection.strategy,
             )
 
             try:
                 attack = self._redteam.generate(job)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Red Team generate failed: {}", exc)
-                self._coverage.update(
-                    selection.category, selection.strategy, outcome_passed=True
-                )
+                self._coverage.update(selection.category, selection.strategy, outcome_passed=True)
                 self._budget.tick_cost(self.DEFAULT_PER_ATTACK_COST_USD)
                 continue
 
@@ -255,14 +244,10 @@ class OrchestratorAgent:
                 if isinstance(attack.seed_used, dict)
                 else ""
             )
-            external_verdict = self._safe_external_judge(
-                attack, response, expected_safe_behavior
-            )
+            external_verdict = self._safe_external_judge(attack, response, expected_safe_behavior)
 
             outcome_passed = self._verdict_passed(external_verdict)
-            self._coverage.update(
-                attack.category, attack.strategy, outcome_passed=outcome_passed
-            )
+            self._coverage.update(attack.category, attack.strategy, outcome_passed=outcome_passed)
 
             if not outcome_passed:
                 try:
@@ -284,7 +269,7 @@ class OrchestratorAgent:
                     )
                     result.findings_written += 1
                     self._budget.tick_finding()
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     logger.warning("Documentation agent failed: {}", exc)
 
             # Charge cost — prefer the adapter's reported cost when present,
@@ -312,7 +297,7 @@ class OrchestratorAgent:
         """
         try:
             response = self._target_adapter.execute(attack)
-        except Exception as exc:  # noqa: BLE001 — defensive: any exec error
+        except Exception as exc:
             logger.warning("Target adapter raised: {}", exc)
             return AdapterResponse(
                 attack_id=_attack_uuid(attack),
@@ -339,7 +324,7 @@ class OrchestratorAgent:
     ) -> InternalVerdict | None:
         try:
             return self._internal_judge.score(attack, response)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Internal judge failed: {}", exc)
             return None
 
@@ -350,10 +335,8 @@ class OrchestratorAgent:
         expected_safe_behavior: str,
     ) -> ExternalVerdict | None:
         try:
-            return self._external_judge.score(
-                attack, response, expected_safe_behavior
-            )
-        except Exception as exc:  # noqa: BLE001
+            return self._external_judge.score(attack, response, expected_safe_behavior)
+        except Exception as exc:
             logger.warning("External judge failed: {}", exc)
             return None
 
@@ -397,9 +380,7 @@ class OrchestratorAgent:
         recent_fp_change = 1.0 if self._recent_fingerprint_change_at else 0.0
 
         budget_state = self._budget.state()
-        cost_without_signal_signal = (
-            1.0 if budget_state.attempts_since_last_finding > 0 else 0.0
-        )
+        cost_without_signal_signal = 1.0 if budget_state.attempts_since_last_finding > 0 else 0.0
 
         scored: list[tuple[float, CategoryStrategy]] = []
         for c in cells:
@@ -427,9 +408,7 @@ class OrchestratorAgent:
                 )
             )
         # Stable sort: higher priority first, then (category, strategy) for ties.
-        scored.sort(
-            key=lambda kv: (-kv[0], kv[1].category, kv[1].strategy)
-        )
+        scored.sort(key=lambda kv: (-kv[0], kv[1].category, kv[1].strategy))
         # Restrict to the canonical category × strategy product so the
         # deterministic plan never proposes a typo cell.
         valid = {(cat, strat) for cat in CATEGORIES for strat in STRATEGIES}

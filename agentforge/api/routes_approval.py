@@ -52,14 +52,10 @@ def list_approval_queue() -> ApprovalQueueResponse:
 @router.post("/approval/{vr_id}/approve", status_code=501)
 def approve(vr_id: str) -> dict[str, str]:
     """Approve a queued item. Phase 8 wiring."""
-    raise HTTPException(
-        status_code=501, detail=f"Phase 8 wiring — approve for {vr_id}"
-    )
+    raise HTTPException(status_code=501, detail=f"Phase 8 wiring — approve for {vr_id}")
 
 
 @router.post("/approval/{vr_id}/reject", status_code=501)
 def reject(vr_id: str) -> dict[str, str]:
     """Reject a queued item. Phase 8 wiring."""
-    raise HTTPException(
-        status_code=501, detail=f"Phase 8 wiring — reject for {vr_id}"
-    )
+    raise HTTPException(status_code=501, detail=f"Phase 8 wiring — reject for {vr_id}")

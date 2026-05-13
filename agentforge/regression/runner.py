@@ -15,7 +15,7 @@ import json
 import os
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -64,8 +64,7 @@ class RegressionRunner:
         path = self._regression_dir / f"{vr_id}.json"
         if not path.exists():
             raise FileNotFoundError(
-                f"Regression case not found: {path} "
-                f"(searched in {self._regression_dir})"
+                f"Regression case not found: {path} " f"(searched in {self._regression_dir})"
             )
         return RegressionCase.from_json(path)
 
@@ -93,16 +92,14 @@ class RegressionRunner:
         """Run every discovered case; emit + persist :class:`ReplayBatch`,
         then evaluate it against the floor.
         """
-        started = datetime.now(timezone.utc)
+        started = datetime.now(UTC)
         cases = self.discover_cases()
 
         outcomes: list[ReplayOutcome] = []
         for case in cases:
-            outcomes.append(
-                self._replay.run_case(case, target_fingerprint=target_fingerprint)
-            )
+            outcomes.append(self._replay.run_case(case, target_fingerprint=target_fingerprint))
 
-        ended = datetime.now(timezone.utc)
+        ended = datetime.now(UTC)
 
         cases_failed_as_expected: list[str] = []
         cases_passed_unexpectedly: list[str] = []
@@ -140,9 +137,7 @@ class RegressionRunner:
 
     # ------------------------------------------------------------ persistence
 
-    def _write_results_jsonl(
-        self, batch: ReplayBatch, outcomes: list[ReplayOutcome]
-    ) -> None:
+    def _write_results_jsonl(self, batch: ReplayBatch, outcomes: list[ReplayOutcome]) -> None:
         """Atomic JSONL write — header line first, then one line per outcome."""
         self._results_dir.mkdir(parents=True, exist_ok=True)
         # ISO-8601 timestamp, filesystem-safe (colons replaced).
@@ -153,9 +148,7 @@ class RegressionRunner:
         lines: list[str] = []
         lines.append(json.dumps({"header": batch.model_dump(mode="json")}, ensure_ascii=False))
         for oc in outcomes:
-            lines.append(
-                json.dumps({"outcome": oc.model_dump(mode="json")}, ensure_ascii=False)
-            )
+            lines.append(json.dumps({"outcome": oc.model_dump(mode="json")}, ensure_ascii=False))
         content = "\n".join(lines) + "\n"
 
         tmp_path = out_path.with_suffix(".jsonl.tmp")

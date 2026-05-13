@@ -17,7 +17,7 @@ def render() -> None:
     client = AgentForgeClient()
     try:
         trend = client.delta_trend(last=20)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"trend unavailable: {exc}")
         return
     snapshots = trend.get("snapshots") or []
@@ -31,9 +31,7 @@ def render() -> None:
         b = snapshots[0]
         a = snapshots[1]
         diff: dict[str, float] = {}
-        keys = set((a.get("by_cell") or {}).keys()) | set(
-            (b.get("by_cell") or {}).keys()
-        )
+        keys = set((a.get("by_cell") or {}).keys()) | set((b.get("by_cell") or {}).keys())
         for k in sorted(keys):
             av = float((a.get("by_cell") or {}).get(k, 0.0))
             bv = float((b.get("by_cell") or {}).get(k, 0.0))

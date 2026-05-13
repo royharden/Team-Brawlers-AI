@@ -10,7 +10,7 @@ Enforced by ``tests/unit/ui/test_no_db_imports.py``.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -24,16 +24,14 @@ class AgentForgeClient:
 
     def __init__(self, base_url: str | None = None, timeout: float = 10.0) -> None:
         self.base_url = base_url or _default_base_url()
-        self._client: httpx.Client = httpx.Client(
-            base_url=self.base_url, timeout=timeout
-        )
+        self._client: httpx.Client = httpx.Client(base_url=self.base_url, timeout=timeout)
 
     # --- generic ---------------------------------------------------------
 
-    def _get_json(self, path: str, **params: Any) -> Any:
+    def _get_json(self, path: str, **params: Any) -> dict[str, Any]:
         resp = self._client.get(path, params=params or None)
         resp.raise_for_status()
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     def _get_text(self, path: str) -> str:
         resp = self._client.get(path)

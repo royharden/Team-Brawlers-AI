@@ -17,7 +17,7 @@ def render() -> None:
     client = AgentForgeClient()
     try:
         dash = client.get_dashboard()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"coverage unavailable: {exc}")
         return
 

@@ -25,10 +25,11 @@ CLI:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -287,16 +288,17 @@ def actual_dev_spend(db_url: str | None) -> tuple[Decimal, dict[str, Decimal], b
         return Decimal("0"), {}, False
     try:
         from sqlalchemy import func, select  # local import — avoid global cost
+
         from agentforge.memory.db import make_engine, make_session_factory
         from agentforge.memory.models import CostLedgerEntry
-    except Exception:  # noqa: BLE001 — DB not available in script context
+    except Exception:
         return Decimal("0"), {}, False
 
     try:
         engine = make_engine(db_url)
         factory = make_session_factory(engine)
         session = factory()
-    except Exception:  # noqa: BLE001 — bad URL or unreadable file
+    except Exception:
         return Decimal("0"), {}, False
     try:
         stmt = select(
@@ -304,14 +306,12 @@ def actual_dev_spend(db_url: str | None) -> tuple[Decimal, dict[str, Decimal], b
             func.coalesce(func.sum(CostLedgerEntry.cost_usd), 0),
         ).group_by(CostLedgerEntry.agent_role)
         rows = session.execute(stmt).all()
-    except Exception:  # noqa: BLE001 — table missing or other failure
+    except Exception:
         session.close()
         return Decimal("0"), {}, False
     finally:
-        try:
+        with contextlib.suppress(Exception):
             session.close()
-        except Exception:  # noqa: BLE001
-            pass
 
     by_role: dict[str, Decimal] = {}
     total = Decimal("0")
@@ -331,9 +331,7 @@ def actual_dev_spend(db_url: str | None) -> tuple[Decimal, dict[str, Decimal], b
 def render_markdown_table(projections: list[ScaleProjection]) -> str:
     """Stdout-friendly Markdown table with the four-scale projection."""
     lines: list[str] = []
-    lines.append(
-        "| n_runs | per_run_usd | total_usd | infra_monthly_usd | external_judge_share |"
-    )
+    lines.append("| n_runs | per_run_usd | total_usd | infra_monthly_usd | external_judge_share |")
     lines.append("| ---: | ---: | ---: | ---: | ---: |")
     for p in projections:
         ej = p.by_role_usd.get("external_judge", Decimal("0"))
@@ -371,19 +369,14 @@ def serialize_payload(
                 "per_run_usd": _d(p.per_run_usd),
                 "total_usd": _d(p.total_usd, "0.01"),
                 "architecture_notes": p.architecture_notes,
-                "by_role_usd": {
-                    role: _d(cost) for role, cost in p.by_role_usd.items()
-                },
+                "by_role_usd": {role: _d(cost) for role, cost in p.by_role_usd.items()},
             }
         )
 
-    if measured:
-        actual_spend_display = _d(actual_spend_total, "0.01")
-    else:
-        actual_spend_display = "0.00 (modelled)"
+    actual_spend_display = _d(actual_spend_total, "0.01") if measured else "0.00 (modelled)"
 
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "pricing_retrieved_on": pricing.retrieved_on.isoformat(),
         "redteam_provider": "openrouter",
         "scales": scales_out,
@@ -433,10 +426,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         default=None,
-        help=(
-            "Output JSON path. Default: "
-            "evals/results/cost_extrapolate_<ISO8601>.json."
-        ),
+        help=("Output JSON path. Default: " "evals/results/cost_extrapolate_<ISO8601>.json."),
     )
     return parser.parse_args(argv)
 
@@ -448,8 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     pricing = PricingTable.from_yaml(pricing_path)
 
     projections = [
-        build_scale_projection(pricing, DEFAULT_ASSUMPTIONS, overlay)
-        for overlay in SCALE_OVERLAYS
+        build_scale_projection(pricing, DEFAULT_ASSUMPTIONS, overlay) for overlay in SCALE_OVERLAYS
     ]
 
     actual_total, actual_by_role, measured = actual_dev_spend(args.db_url)
@@ -467,14 +456,17 @@ def main(argv: list[str] | None = None) -> int:
         out_path = Path(args.output)
     else:
         DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         out_path = DEFAULT_OUTPUT_DIR / f"cost_extrapolate_{stamp}.json"
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    print("AgentForge cost extrapolation — modelled, not measured" if not measured
-          else "AgentForge cost extrapolation — actual spend overlaid where available")
+    print(
+        "AgentForge cost extrapolation — modelled, not measured"
+        if not measured
+        else "AgentForge cost extrapolation — actual spend overlaid where available"
+    )
     print(f"pricing retrieved_on: {pricing.retrieved_on.isoformat()}")
     print(f"output: {out_path}")
     print()

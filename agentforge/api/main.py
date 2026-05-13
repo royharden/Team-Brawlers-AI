@@ -25,7 +25,6 @@ from agentforge.api import (
     routes_runs,
 )
 
-
 # Phase 5: 337 tests passing on `main` at handoff. Updated as the suite grows.
 TESTS_PASSING_AT_BUILD: int = 337
 
@@ -37,9 +36,7 @@ def _build_app() -> FastAPI:
     # No wildcard origins; aligns with AgDR-0002's "local-only" stance.
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=re.compile(
-            r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
-        ).pattern,
+        allow_origin_regex=re.compile(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$").pattern,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],

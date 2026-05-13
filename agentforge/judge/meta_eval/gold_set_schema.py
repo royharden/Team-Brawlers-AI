@@ -74,17 +74,13 @@ class GoldSet(BaseModel):
             raise ValueError(f"empty gold set file: {path}")
         header = json.loads(lines[0])
         if not header.get("cases_follow", False):
-            raise ValueError(
-                f"gold set header missing cases_follow=true: {path}"
-            )
+            raise ValueError(f"gold set header missing cases_follow=true: {path}")
         cases: list[GoldCase] = []
         for raw in lines[1:]:
             cases.append(GoldCase.model_validate_json(raw))
         n_cases = header.get("n_cases", len(cases))
         if n_cases != len(cases):
-            raise ValueError(
-                f"header n_cases={n_cases} but {len(cases)} cases on disk in {path}"
-            )
+            raise ValueError(f"header n_cases={n_cases} but {len(cases)} cases on disk in {path}")
         return cls(
             version=header["version"],
             created_at=header["created_at"],

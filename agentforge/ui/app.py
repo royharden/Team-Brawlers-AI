@@ -14,7 +14,6 @@ import streamlit as st
 
 from agentforge.ui.api_client import AgentForgeClient
 
-
 PAGE_TITLE = "AgentForge | Adversarial AI Security Platform"
 
 
@@ -25,13 +24,13 @@ def _render_sidebar(client: AgentForgeClient) -> None:
         try:
             health = client.healthz()
             st.success(f"API ok — v{health.get('version', '?')}")
-        except Exception as exc:  # noqa: BLE001 — sidebar is best-effort
+        except Exception as exc:
             st.error(f"API unreachable: {exc}")
             return
 
         try:
             dash = client.get_dashboard()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             st.warning(f"dashboard unavailable: {exc}")
             return
 
@@ -60,9 +59,7 @@ def main() -> None:
     )
     client = AgentForgeClient()
     _render_sidebar(client)
-    st.info(
-        "Open the **Dashboard** page in the left sidebar for the full overview."
-    )
+    st.info("Open the **Dashboard** page in the left sidebar for the full overview.")
 
 
 if __name__ == "__main__":

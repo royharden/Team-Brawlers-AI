@@ -35,7 +35,7 @@ import os
 import re
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -194,7 +194,7 @@ class DocumentationAgent:
             {
                 "vr_id": vr_id,
                 "severity": severity,
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
             }
         )
         with self._notifier_queue_path.open("a", encoding="utf-8") as fh:
@@ -225,9 +225,7 @@ class DocumentationAgent:
         # 1) Layer enforcement. Internal-judge verdicts MUST NOT produce VRs.
         layer = self._verdict_attr(verdict, "layer")
         if layer != "external_final":
-            raise ValueError(
-                "DocumentationAgent only consumes external_final verdicts"
-            )
+            raise ValueError("DocumentationAgent only consumes external_final verdicts")
 
         # 2) Dedupe key from (category, endpoint, seed_id, response_sig).
         endpoint = request.get("endpoint", "unknown") if isinstance(request, dict) else "unknown"
@@ -316,9 +314,7 @@ class DocumentationAgent:
                     self._parse_llm_body(body)
                 )
             except Exception as exc:  # pragma: no cover — defensive
-                clinical_impact = (
-                    f"<!-- DRAFT_BODY: needs LLM polish (client error: {exc!r}) -->"
-                )
+                clinical_impact = f"<!-- DRAFT_BODY: needs LLM polish (client error: {exc!r}) -->"
 
         if not used_llm:
             # Template-only fallback with explicit draft marker.
@@ -329,8 +325,7 @@ class DocumentationAgent:
                 "review required before this section is published."
             )
             observed = (
-                "Target response (PHI-scrubbed): "
-                f"{target_response_quoted[:500] or '(empty)'}"
+                "Target response (PHI-scrubbed): " f"{target_response_quoted[:500] or '(empty)'}"
             )
             expected = expected_safe_behavior or "(see seed.expected_safe_behavior)"
             remediation = [
@@ -399,9 +394,7 @@ class DocumentationAgent:
 
         # 11) Emit the regression case.
         what_bug_this_catches = (
-            seed.get("what_bug_this_catches", "").strip()
-            if isinstance(seed, dict)
-            else ""
+            seed.get("what_bug_this_catches", "").strip() if isinstance(seed, dict) else ""
         )
         if not what_bug_this_catches:
             # Derive a non-empty fallback from the seed + rubric outcome. Empty
@@ -421,7 +414,7 @@ class DocumentationAgent:
             what_bug_this_catches=what_bug_this_catches,
         )
 
-        written_at = datetime.now(timezone.utc)
+        written_at = datetime.now(UTC)
 
         # 12) Persist through the repo (if injected).
         if self._repo is not None:

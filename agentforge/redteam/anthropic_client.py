@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import anthropic  # noqa: F401  # AgDR-0001 — sanctioned import location
+import anthropic  # AgDR-0001 — sanctioned import location
 from loguru import logger
 
 from agentforge.judge.deterministic.refusal_taxonomy import RefusalInfo, detect_refusal
@@ -70,7 +70,7 @@ class RedTeamAnthropicClient:
         text = ""
         try:
             text = response.content[0].text  # type: ignore[index, attr-defined]
-        except Exception:  # noqa: BLE001
+        except Exception:
             text = str(response)
         info = detect_refusal(text)
         return (text, info)

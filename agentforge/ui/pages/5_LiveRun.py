@@ -20,7 +20,7 @@ def render() -> None:
     client = AgentForgeClient()
     try:
         batch = client.latest_regression_results()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"regression results unavailable: {exc}")
         return
     st.subheader("Most-recent regression batch (substitute view)")

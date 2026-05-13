@@ -33,7 +33,7 @@ def render() -> None:
             severity=severity or None,
             status=status or None,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"reports unavailable: {exc}")
         return
 
@@ -59,7 +59,7 @@ def render() -> None:
     if selected:
         try:
             detail = client.get_report(selected.strip())
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             st.error(f"could not fetch {selected}: {exc}")
         else:
             st.markdown(detail.get("content_markdown") or "_no markdown body_")

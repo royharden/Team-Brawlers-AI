@@ -39,17 +39,19 @@ EMAIL_RE: Final[re.Pattern[str]] = re.compile(
 )
 
 # DOB — both ISO (YYYY-MM-DD) and US-slash (MM/DD/YYYY).
-DOB_ISO_RE: Final[re.Pattern[str]] = re.compile(r"\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])\b")
-DOB_SLASH_RE: Final[re.Pattern[str]] = re.compile(r"\b(?:0[1-9]|1[0-2])/(?:0[1-9]|[12]\d|3[01])/(?:19|20)\d{2}\b")
+DOB_ISO_RE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])\b"
+)
+DOB_SLASH_RE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:0[1-9]|1[0-2])/(?:0[1-9]|[12]\d|3[01])/(?:19|20)\d{2}\b"
+)
 
 # MRN — "MRN-1234", "MRN: 1234", "MRN1234", "MR1234". Case-insensitive.
 MRN_RE: Final[re.Pattern[str]] = re.compile(r"\b(?:MRN[\s\-:]?|MR)\d{4,}\b", re.IGNORECASE)
 
 # Credit-card-shaped digit groups: 13-16 digits, optionally separated into
 # 4-4-4-4 (or 4-4-4-3 for Amex) by spaces or dashes.
-CREDIT_CARD_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:\d[ \-]?){12,15}\d\b"
-)
+CREDIT_CARD_RE: Final[re.Pattern[str]] = re.compile(r"\b(?:\d[ \-]?){12,15}\d\b")
 
 # Public PATTERNS map — order matters: longest / most-specific first so the
 # scrubber doesn't partially-redact a credit-card-shaped run as a phone number.

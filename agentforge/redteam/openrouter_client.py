@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import openai  # noqa: F401  # AgDR-0013 — sanctioned import location
+import openai  # AgDR-0013 — sanctioned import location
 from loguru import logger
 from openai import OpenAI
 

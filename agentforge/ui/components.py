@@ -97,7 +97,7 @@ def coverage_heatmap(snapshot: list[dict[str, Any]]) -> dict[str, Any]:
     """Render an 8x9 coverage heatmap. Returns the grid dict for testability."""
     grid = _heatmap_grid(snapshot)
     try:
-        import streamlit as st  # noqa: F401
+        import streamlit as st
     except Exception:  # pragma: no cover — Streamlit unavailable in test ctx
         return grid
 
@@ -162,7 +162,7 @@ def defense_delta_chart(trend: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
     series.reverse()
     try:
-        import streamlit as st  # noqa: F401
+        import streamlit as st
     except Exception:  # pragma: no cover
         return series
     try:

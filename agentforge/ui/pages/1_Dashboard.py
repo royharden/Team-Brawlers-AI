@@ -18,7 +18,7 @@ def render() -> None:
 
     try:
         dash = client.get_dashboard()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"dashboard unavailable: {exc}")
         return
 
@@ -51,7 +51,7 @@ def render() -> None:
     try:
         trend = client.delta_trend(last=10)
         defense_delta_chart(trend.get("snapshots", []))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.caption(f"defense-delta trend unavailable: {exc}")
 
 

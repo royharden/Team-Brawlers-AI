@@ -11,7 +11,6 @@ import streamlit as st
 from agentforge.ui.api_client import AgentForgeClient
 from agentforge.ui.components import cost_table
 
-
 COST_EXPLAINER = """
 **What changes at each scale**
 
@@ -32,7 +31,7 @@ def render() -> None:
 
     try:
         today = client.cost_today()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"cost today unavailable: {exc}")
         today = {}
 
@@ -48,7 +47,7 @@ def render() -> None:
     st.subheader("Projections")
     try:
         projections = client.cost_projections()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"projections unavailable: {exc}")
         projections = {}
     rows = cost_table(projections)

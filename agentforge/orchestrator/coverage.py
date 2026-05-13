@@ -8,7 +8,7 @@ matrix.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
@@ -78,9 +78,7 @@ class CoverageMatrix:
 
     # ---------------------------------------------------------------- updates
 
-    def update(
-        self, category: str, strategy: str, outcome_passed: bool
-    ) -> CoverageCell:
+    def update(self, category: str, strategy: str, outcome_passed: bool) -> CoverageCell:
         """Increment the counter for this cell and persist the row.
 
         ``outcome_passed=True`` means the TARGET defended successfully (the
@@ -110,7 +108,7 @@ class CoverageMatrix:
                 row.passes = (row.passes or 0) + 1
             else:
                 row.failures = (row.failures or 0) + 1
-            row.last_attempt_at = datetime.now(timezone.utc)
+            row.last_attempt_at = datetime.now(UTC)
             decided = row.passes + row.failures
             row.last_pass_rate = (row.passes / decided) if decided > 0 else 0.0
             session.commit()
@@ -186,14 +184,11 @@ class CoverageMatrix:
     @staticmethod
     def _row_to_cell(row: CoverageCellRow) -> CoverageCell:
         last_pass_rate: float | None
-        if row.attempts == 0:
-            last_pass_rate = None
-        else:
-            last_pass_rate = row.last_pass_rate
+        last_pass_rate = None if row.attempts == 0 else row.last_pass_rate
         last_at = row.last_attempt_at
         # SQLite returns naive datetimes; coerce to UTC-aware for comparison.
         if last_at is not None and last_at.tzinfo is None:
-            last_at = last_at.replace(tzinfo=timezone.utc)
+            last_at = last_at.replace(tzinfo=UTC)
         return CoverageCell(
             category=row.category,
             strategy=row.strategy,

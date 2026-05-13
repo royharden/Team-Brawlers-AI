@@ -14,6 +14,7 @@ master plan §5.2 ("SQLite mode: WAL + synchronous=NORMAL").
 
 from __future__ import annotations
 
+import contextlib
 import os
 from collections.abc import Generator
 from pathlib import Path
@@ -38,7 +39,7 @@ def _enable_sqlite_pragmas(dbapi_conn: Any, _conn_record: Any) -> None:
         cur.execute("PRAGMA synchronous=NORMAL")
         cur.execute("PRAGMA foreign_keys=ON")
         cur.close()
-    except Exception:  # noqa: BLE001 — non-sqlite connections lack the cursor.
+    except Exception:
         pass
 
 
@@ -70,10 +71,8 @@ def _ensure_sqlite_parent_dir(url: str) -> None:
     p = Path(path_str)
     parent = p.parent
     if str(parent) and not parent.exists():
-        try:
+        with contextlib.suppress(OSError):
             parent.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass
 
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:

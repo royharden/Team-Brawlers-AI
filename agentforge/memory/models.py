@@ -13,7 +13,7 @@ UPDATE/DELETE in `FlightEventRepo`); the schema does not try to express it.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -31,7 +31,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 def _utcnow() -> datetime:
     """Timezone-aware UTC default used by every `created_at` column."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Base(DeclarativeBase):
@@ -50,9 +50,7 @@ class Run(Base):
     run_type: Mapped[str] = mapped_column(String(32), default="exploratory")
     status: Mapped[str] = mapped_column(String(32), default="running")
     model_resolution_json: Mapped[str] = mapped_column(Text, default="{}")
-    total_cost_usd: Mapped[Decimal] = mapped_column(
-        Numeric(14, 6), default=Decimal("0")
-    )
+    total_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 6), default=Decimal("0"))
     halt_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -75,9 +73,7 @@ class AttackTrace(Base):
     __tablename__ = "attack_traces"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    attack_job_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("attack_jobs.id")
-    )
+    attack_job_id: Mapped[str] = mapped_column(String(36), ForeignKey("attack_jobs.id"))
     mutator_chain_json: Mapped[str] = mapped_column(Text, default="[]")
     rendered_prompt: Mapped[str] = mapped_column(Text, default="")
     rendered_document: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -94,9 +90,7 @@ class Verdict(Base):
     __tablename__ = "verdicts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    attack_trace_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("attack_traces.id")
-    )
+    attack_trace_id: Mapped[str] = mapped_column(String(36), ForeignKey("attack_traces.id"))
     # Stored as TEXT enum (sqlite-portable). Allowed: internal_progress|external_final.
     layer: Mapped[str] = mapped_column(String(32))
     rubric_results_json: Mapped[str] = mapped_column(Text, default="[]")
@@ -158,9 +152,7 @@ class RegressionCase(Base):
     __tablename__ = "regression_cases"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    vr_id: Mapped[str] = mapped_column(
-        String(32), ForeignKey("vuln_reports.vr_id"), unique=True
-    )
+    vr_id: Mapped[str] = mapped_column(String(32), ForeignKey("vuln_reports.vr_id"), unique=True)
     # Testing-discipline contract: every regression case must say what it
     # catches, in plain English, with non-empty length.
     what_bug_this_catches: Mapped[str] = mapped_column(Text, nullable=False)

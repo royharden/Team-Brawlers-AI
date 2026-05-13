@@ -63,10 +63,7 @@ def check_cost_per_request(cost_usd: Decimal) -> bool:
     if cost_usd is None:
         return False
     try:
-        if isinstance(cost_usd, Decimal):
-            value = cost_usd
-        else:
-            value = Decimal(str(cost_usd))
+        value = cost_usd if isinstance(cost_usd, Decimal) else Decimal(str(cost_usd))
     except (TypeError, ValueError, ArithmeticError):
         return False
     return value < MAX_COST_PER_REQUEST_USD

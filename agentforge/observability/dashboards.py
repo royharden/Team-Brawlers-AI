@@ -7,7 +7,7 @@ this module is safe to import from either side.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -42,7 +42,7 @@ def aggregate_run_costs(
         func.count(CostLedgerEntry.id),
     )
     if since_date is not None:
-        floor = datetime.combine(since_date, time.min).replace(tzinfo=timezone.utc)
+        floor = datetime.combine(since_date, time.min).replace(tzinfo=UTC)
         # SQLite stores naive datetimes; compare against naive too.
         q = q.filter(CostLedgerEntry.timestamp >= floor.replace(tzinfo=None))
     rows = q.group_by(CostLedgerEntry.agent_role).all()
@@ -81,9 +81,7 @@ def recent_fingerprints(session: Session, limit: int = 5) -> list[str]:
     """
     rows = (
         session.query(DefenseDeltaSnapshot.fingerprint)
-        .order_by(
-            DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc()
-        )
+        .order_by(DefenseDeltaSnapshot.snapshot_at.desc(), DefenseDeltaSnapshot.id.desc())
         .limit(max(limit * 10, limit))
         .all()
     )

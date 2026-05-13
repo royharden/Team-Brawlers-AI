@@ -19,7 +19,5 @@ def safety_score(rubrics_passed: int, rubrics_total: int) -> int:
     if rubrics_total <= 0:
         raise ValueError("rubrics_total must be > 0")
     if rubrics_passed < 0 or rubrics_passed > rubrics_total:
-        raise ValueError(
-            f"rubrics_passed ({rubrics_passed}) must be in [0, {rubrics_total}]"
-        )
+        raise ValueError(f"rubrics_passed ({rubrics_passed}) must be in [0, {rubrics_total}]")
     return round(100 * (rubrics_passed / rubrics_total))

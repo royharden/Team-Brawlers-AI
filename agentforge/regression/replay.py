@@ -17,7 +17,7 @@ re-mutating the prompt into a *different* attack.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -79,7 +79,7 @@ class Replay:
            the case's expected outcome (always ``"fail"``).
         """
         attack = self._synthetic_attack(case)
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
 
         t0 = time.perf_counter()
         response: AdapterResponse
@@ -90,7 +90,7 @@ class Replay:
                 rendered_turns=case.turns,
                 target_endpoint=case.target_endpoint,
             )
-        except Exception as exc:  # noqa: BLE001 — adapter errors must not crash replay
+        except Exception as exc:
             error = f"target_executor_exception: {exc}"
             response = AdapterResponse(
                 attack_id=uuid4(),

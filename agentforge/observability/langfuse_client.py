@@ -14,10 +14,10 @@ Tests inject a fake `_sdk_factory` to capture payloads without network.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from decimal import Decimal
-from typing import Any, Iterator
+from typing import Any
 
 from loguru import logger
 
@@ -28,7 +28,7 @@ from agentforge.observability.scrubber import scrub_phi, scrub_phi_in_obj
 class _NullSpan:
     """No-op span returned in disabled mode (and as a fallback)."""
 
-    def set_output(self, output: Any) -> None:  # noqa: D401, ARG002
+    def set_output(self, output: Any) -> None:
         return None
 
     def end(self) -> None:
@@ -53,9 +53,7 @@ class LangfuseClient:
         self._sdk: Any | None = None
 
         if not self._enabled:
-            logger.warning(
-                "Langfuse keys missing — LANGFUSE_DISABLED mode (no-op tracing)"
-            )
+            logger.warning("Langfuse keys missing — LANGFUSE_DISABLED mode (no-op tracing)")
             return
 
         try:
@@ -65,7 +63,7 @@ class LangfuseClient:
                 secret_key=self._cfg.secret_key,
                 host=self._cfg.host,
             )
-        except Exception as exc:  # noqa: BLE001 — never crash on observability
+        except Exception as exc:
             logger.error("Langfuse SDK init failed: {} — falling back to no-op", exc)
             self._enabled = False
             self._sdk = None
@@ -80,7 +78,7 @@ class LangfuseClient:
     def trace(
         self,
         name: str,
-        input: Any = None,  # noqa: A002 — matches Langfuse arg name
+        input: Any = None,
         metadata: dict[str, Any] | None = None,
     ) -> Iterator[Any]:
         """Context manager that opens a Langfuse trace span.
@@ -98,10 +96,8 @@ class LangfuseClient:
         start = time.monotonic()
         span: Any
         try:
-            span = self._sdk.trace(
-                name=name, input=scrubbed_input, metadata=scrubbed_meta
-            )
-        except Exception as exc:  # noqa: BLE001
+            span = self._sdk.trace(name=name, input=scrubbed_input, metadata=scrubbed_meta)
+        except Exception as exc:
             logger.error("Langfuse trace open failed: {}", exc)
             yield _NullSpan()
             return
@@ -122,7 +118,7 @@ class LangfuseClient:
                     set_output = getattr(span, "set_output", None)
                     if callable(set_output):
                         set_output(output_scrubbed)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.error("Langfuse trace close failed: {}", exc)
 
     def record_llm_call(
@@ -162,7 +158,7 @@ class LangfuseClient:
                 alt = getattr(self._sdk, "create_generation", None)
                 if callable(alt):
                     alt(**payload)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("Langfuse generation emit failed: {}", exc)
 
     def flush(self) -> None:
@@ -173,7 +169,7 @@ class LangfuseClient:
             flush_fn = getattr(self._sdk, "flush", None)
             if callable(flush_fn):
                 flush_fn()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("Langfuse flush failed: {}", exc)
 
 
@@ -190,7 +186,7 @@ class _SpanProxy:
         if callable(set_output):
             try:
                 set_output(scrub_phi_in_obj(output))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.error("Langfuse set_output failed: {}", exc)
 
     def __getattr__(self, name: str) -> Any:

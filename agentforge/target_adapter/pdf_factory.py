@@ -19,7 +19,7 @@ so generated artifacts are traceable in audit logs.
 from __future__ import annotations
 
 from io import BytesIO
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from pypdf import PdfReader, PdfWriter
@@ -38,9 +38,7 @@ from reportlab.platypus import (
 
 __all__ = ["LabRow", "PDFFactory"]
 
-InjectionPlacement = Literal[
-    "after_results", "header_footer", "metadata", "off_page"
-]
+InjectionPlacement = Literal["after_results", "header_footer", "metadata", "off_page"]
 
 _PRODUCER_NAME: str = "AgentForge PDFFactory v1"
 
@@ -68,9 +66,7 @@ class PDFFactory:
     target's LLM context.
     """
 
-    def __init__(
-        self, *, default_author: str = "AgentForge Synthetic Generator"
-    ) -> None:
+    def __init__(self, *, default_author: str = "AgentForge Synthetic Generator") -> None:
         self._default_author = default_author
 
     # ------------------------------------------------------------------
@@ -157,12 +153,12 @@ class PDFFactory:
         for page in reader.pages:
             text = page.extract_text() or ""
             parts.append(text)
-        meta = reader.metadata or {}
+        meta: Any = reader.metadata or {}
         # Metadata keys are PDF /Name objects; access by indexing string keys.
         for key in ("/Title", "/Subject", "/Keywords", "/Author"):
             try:
                 value = meta.get(key)  # type: ignore[attr-defined]
-            except Exception:  # noqa: BLE001
+            except Exception:
                 value = None
             if value:
                 parts.append(str(value))
@@ -200,29 +196,22 @@ class PDFFactory:
         styles = getSampleStyleSheet()
         story: list = []
 
-        header_injection = (
-            injected_text if injection_placement == "header_footer" else ""
-        )
+        header_injection = injected_text if injection_placement == "header_footer" else ""
 
         story.append(Paragraph("Synthetic Test Lab - Report", styles["Title"]))
         story.append(Spacer(1, 0.15 * inch))
         story.append(
             Paragraph(
-                f"<b>Patient:</b> {patient_name} &nbsp;&nbsp;"
-                f"<b>DOB:</b> {patient_dob}",
+                f"<b>Patient:</b> {patient_name} &nbsp;&nbsp;" f"<b>DOB:</b> {patient_dob}",
                 styles["Normal"],
             )
         )
         story.append(Spacer(1, 0.2 * inch))
 
         # Lab results table
-        table_data: list[list[str]] = [
-            ["Analyte", "Value", "Unit", "Reference Range", "Flag"]
-        ]
+        table_data: list[list[str]] = [["Analyte", "Value", "Unit", "Reference Range", "Flag"]]
         for row in lab_panel:
-            table_data.append(
-                [row.name, row.value, row.unit, row.reference_range, row.flag]
-            )
+            table_data.append([row.name, row.value, row.unit, row.reference_range, row.flag])
         table = Table(
             table_data,
             colWidths=[1.6 * inch, 1.0 * inch, 1.0 * inch, 1.6 * inch, 0.6 * inch],
@@ -261,9 +250,7 @@ class PDFFactory:
 
         on_page = self._make_on_page(
             header_injection=header_injection,
-            off_page_injection=(
-                injected_text if injection_placement == "off_page" else ""
-            ),
+            off_page_injection=(injected_text if injection_placement == "off_page" else ""),
         )
         doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
         return buf.getvalue()
@@ -293,16 +280,13 @@ class PDFFactory:
         styles = getSampleStyleSheet()
         story: list = []
 
-        header_injection = (
-            injected_text if injection_placement == "header_footer" else ""
-        )
+        header_injection = injected_text if injection_placement == "header_footer" else ""
 
         story.append(Paragraph("Patient Intake Form", styles["Title"]))
         story.append(Spacer(1, 0.15 * inch))
         story.append(
             Paragraph(
-                f"<b>Patient:</b> {patient_name} &nbsp;&nbsp;"
-                f"<b>DOB:</b> {patient_dob}",
+                f"<b>Patient:</b> {patient_name} &nbsp;&nbsp;" f"<b>DOB:</b> {patient_dob}",
                 styles["Normal"],
             )
         )
@@ -311,8 +295,7 @@ class PDFFactory:
         for label, value in intake_fields.items():
             story.append(
                 Paragraph(
-                    f"<b>{self._escape_paragraph(label)}:</b> "
-                    f"{self._escape_paragraph(value)}",
+                    f"<b>{self._escape_paragraph(label)}:</b> " f"{self._escape_paragraph(value)}",
                     styles["Normal"],
                 )
             )
@@ -326,9 +309,7 @@ class PDFFactory:
                     styles["Italic"],
                 )
             )
-            story.append(
-                Paragraph(self._escape_paragraph(injected_text), styles["Normal"])
-            )
+            story.append(Paragraph(self._escape_paragraph(injected_text), styles["Normal"]))
 
         story.append(Spacer(1, 0.25 * inch))
         story.append(
@@ -341,9 +322,7 @@ class PDFFactory:
 
         on_page = self._make_on_page(
             header_injection=header_injection,
-            off_page_injection=(
-                injected_text if injection_placement == "off_page" else ""
-            ),
+            off_page_injection=(injected_text if injection_placement == "off_page" else ""),
         )
         doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
         return buf.getvalue()
@@ -409,7 +388,9 @@ class PDFFactory:
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
-        existing = dict(reader.metadata or {})
+        # pypdf treats /Producer etc. as PdfObject internally, but accepts strings on
+        # add_metadata via runtime coercion. Type-narrow to Any so the dict accepts strs.
+        existing: dict[Any, Any] = dict(reader.metadata or {})
         existing["/Producer"] = _PRODUCER_NAME
         existing.setdefault("/Title", title)
         if injection_placement == "metadata":
@@ -432,11 +413,7 @@ class PDFFactory:
         injected_text is adversarial — we keep the visible content but
         neutralize any `<` / `>` that would otherwise crash the parser.
         """
-        return (
-            text.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     @classmethod
     def _assert_extracts(cls, pdf_bytes: bytes, injected_text: str) -> None:

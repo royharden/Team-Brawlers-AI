@@ -18,7 +18,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 DEFAULT_FLOOR: dict[str, float] = {
     "precision": 0.85,
     "recall": 0.80,
@@ -56,7 +55,7 @@ def _binary_krippendorff_alpha(labels: list[int], preds: list[int]) -> float:
     n = len(labels)
     if n == 0:
         return 0.0
-    mismatches = sum(1 for a, b in zip(labels, preds) if a != b)
+    mismatches = sum(1 for a, b in zip(labels, preds, strict=False) if a != b)
     total = sum(labels) + sum(preds)
     p = total / (2 * n)
     d_e = 2 * p * (1 - p)
@@ -84,32 +83,24 @@ def compute_judge_metrics(
     ``floor_met``.
     """
     if len(predictions) != len(gold):
-        raise ValueError(
-            f"predictions length {len(predictions)} != gold length {len(gold)}"
-        )
+        raise ValueError(f"predictions length {len(predictions)} != gold length {len(gold)}")
 
     pred_ids = [c for c, _ in predictions]
     gold_ids = [c for c, _ in gold]
     if pred_ids != gold_ids:
         # If only ordering differs, raise — caller is expected to align upstream.
-        mismatched = [
-            (p, g) for p, g in zip(pred_ids, gold_ids) if p != g
-        ][:5]
-        raise ValueError(
-            f"case_ids in predictions and gold do not match (e.g. {mismatched})"
-        )
+        mismatched = [(p, g) for p, g in zip(pred_ids, gold_ids, strict=False) if p != g][:5]
+        raise ValueError(f"case_ids in predictions and gold do not match (e.g. {mismatched})")
 
     if layer not in ("internal_progress", "external_final"):
-        raise ValueError(
-            f"layer must be 'internal_progress' or 'external_final'; got {layer!r}"
-        )
+        raise ValueError(f"layer must be 'internal_progress' or 'external_final'; got {layer!r}")
 
     floor = dict(floor) if floor is not None else dict(DEFAULT_FLOOR)
 
     tp = fp = tn = fn = abstain = 0
     labels: list[int] = []
     preds: list[int] = []
-    for (_, pred_label), (_, gold_label) in zip(predictions, gold):
+    for (_, pred_label), (_, gold_label) in zip(predictions, gold, strict=False):
         gold_failed = gold_label == "failed"
         if pred_label == "abstain":
             abstain += 1
@@ -133,11 +124,7 @@ def compute_judge_metrics(
     n_correct = tp + tn
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if (precision + recall)
-        else 0.0
-    )
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
     alpha = _binary_krippendorff_alpha(labels, preds)
 
     floor_met: dict[str, bool] = {

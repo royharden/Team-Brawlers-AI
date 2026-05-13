@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,9 +53,7 @@ class RegressionCurator:
             )
 
         prompt = (
-            attack.rendered_prompt
-            if attack.rendered_prompt is not None
-            else seed.get("prompt", "")
+            attack.rendered_prompt if attack.rendered_prompt is not None else seed.get("prompt", "")
         )
 
         case: dict[str, Any] = {
@@ -73,7 +71,7 @@ class RegressionCurator:
                 "target_fingerprint_at_discovery": target_fingerprint,
                 "replay_command": f"tb regress --case {vr_id}",
                 "expected_outcome": "fail",
-                "emitted_at": datetime.now(timezone.utc).isoformat(),
+                "emitted_at": datetime.now(UTC).isoformat(),
             },
         }
 

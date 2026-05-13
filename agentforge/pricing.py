@@ -11,12 +11,12 @@ NO live API calls in tests — `resolve_models()` is HTTP-mocked via `respx`.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]  # types-PyYAML not in dev deps
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -46,7 +46,7 @@ class ModelResolution(BaseModel):
     requested: dict[str, str] = Field(default_factory=dict)
     resolved: dict[str, str] = Field(default_factory=dict)
     substitutions: list[str] = Field(default_factory=list)
-    resolved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    resolved_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 # --- PricingTable -------------------------------------------------------------
@@ -207,7 +207,7 @@ def resolve_models(
         client = anthropic_client or _build_anthropic_client(cfg)
         listing = client.models.list()
         anthropic_ids = {_extract_model_id(m) for m in _iter_listing(listing)}
-    except Exception as exc:  # noqa: BLE001 — log + continue with empty set
+    except Exception as exc:
         logger.warning("anthropic models.list() failed: {}", exc)
 
     resolved["orchestrator"] = _pick(
@@ -336,15 +336,13 @@ def _resolve_openrouter_redteam(
             f"redteam: OPENROUTER_API_KEY missing; substituting Anthropic "
             f"{sonnet!r} per AgDR-0013 emergency-fallback path"
         )
-        logger.warning(
-            "OpenRouter red-team substitution invoked (AgDR-0013): no API key"
-        )
+        logger.warning("OpenRouter red-team substitution invoked (AgDR-0013): no API key")
         # Even though we substitute, only return the substitute if it's
         # actually present in the Anthropic listing; otherwise keep the
         # requested OpenRouter id so the runtime error surfaces clearly.
         if not anthropic_ids or sonnet in anthropic_ids:
-            return sonnet
-    return requested
+            return str(sonnet)
+    return str(requested)
 
 
 def _resolve_fireworks_redteam(
@@ -373,21 +371,19 @@ def _resolve_fireworks_redteam(
 
         ids = {str(m) for m in fireworks_models_list_fn()}
         if requested in ids:
-            return requested
+            return str(requested)
         if cfg.fireworks.redteam_fallback_model in ids:
             substitutions.append(
                 f"redteam: requested {requested!r}, substituted fireworks "
                 f"fallback {cfg.fireworks.redteam_fallback_model!r}"
             )
-            return cfg.fireworks.redteam_fallback_model
+            return str(cfg.fireworks.redteam_fallback_model)
         raise RuntimeError("requested fireworks model not in listing")
-    except Exception as exc:  # noqa: BLE001 — substitution path is the goal.
+    except Exception as exc:
         sonnet = cfg.anthropic.orchestrator_model
         substitutions.append(
             f"redteam: fireworks unreachable ({exc}); substituting Anthropic "
             f"{sonnet!r} per AgDR-0001"
         )
-        logger.warning(
-            "Fireworks red-team substitution invoked (AgDR-0001): {}", exc
-        )
-        return sonnet
+        logger.warning("Fireworks red-team substitution invoked (AgDR-0001): {}", exc)
+        return str(sonnet)
