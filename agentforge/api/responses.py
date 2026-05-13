@@ -97,6 +97,35 @@ class RunDetail(BaseModel):
     verdict_count: int = 0
 
 
+class RunStartResponse(BaseModel):
+    """Returned by `POST /v1/runs/start` after a background thread is spawned.
+
+    `status` is one of `pending` (thread queued, not yet started),
+    `running`, `completed`, `failed`, `halted` per the in-memory tracker.
+    """
+
+    run_id: str
+    status: str
+    run_type: str = "smoke"
+    count: int = 1
+
+
+class RunLiveState(BaseModel):
+    """Live state of a background run — `GET /v1/runs/{run_id}/state`."""
+
+    run_id: str
+    status: str
+    run_type: str = "smoke"
+    count: int = 1
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    attacks_executed: int = 0
+    findings_written: int = 0
+    halted: bool = False
+    halt_reason: str | None = None
+    error: str | None = None
+
+
 # --- VR reports ---------------------------------------------------------------
 
 
@@ -237,6 +266,8 @@ __all__ = [
     "RunRow",
     "RunListResponse",
     "RunDetail",
+    "RunStartResponse",
+    "RunLiveState",
     "VulnReportRow",
     "VulnReportListResponse",
     "VulnReportDetail",

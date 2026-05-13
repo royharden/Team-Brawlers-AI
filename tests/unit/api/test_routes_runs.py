@@ -56,8 +56,99 @@ def test_run_detail_404(client: TestClient) -> None:
     assert r.status_code == 404
 
 
+# --- Next05 §1: live-run streaming endpoints ---------------------------------
+
+
 @pytest.mark.unit
-def test_runs_start_returns_501_phase_8(client: TestClient) -> None:
-    """Mutating `POST /v1/runs/start` is a Phase-8 stub returning 501 (read-only surface in Phase 5)."""
+def test_runs_start_returns_run_id_and_pending_status(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`POST /v1/runs/start` returns 200 + `{run_id, status}`. The runner
+    is monkeypatched so no orchestrator + LLM is actually invoked."""
+    from agentforge.api import run_runner
+
+    captured: dict[str, object] = {}
+
+    def _fake_start(run_type: str = "smoke", count: int = 1) -> run_runner.RunState:
+        captured["run_type"] = run_type
+        captured["count"] = count
+        return run_runner.RunState(
+            run_id="fake-run-id-1",
+            status="pending",
+            run_type=run_type,
+            count=count,
+        )
+
+    monkeypatch.setattr("agentforge.api.routes_runs.start_background_run", _fake_start)
+
+    r = client.post("/v1/runs/start", params={"run_type": "smoke", "count": 1})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["run_id"] == "fake-run-id-1"
+    assert body["status"] == "pending"
+    assert captured == {"run_type": "smoke", "count": 1}
+
+
+@pytest.mark.unit
+def test_runs_start_429_when_another_run_in_flight(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`POST /v1/runs/start` returns 429 when the runner refuses (concurrency
+    cap of 1 — sub-plan Next05 §1)."""
+    from agentforge.api import run_runner
+
+    def _fake_start(run_type: str = "smoke", count: int = 1) -> run_runner.RunState:
+        return run_runner.RunState(
+            run_id="",
+            status="failed",
+            run_type=run_type,
+            count=count,
+            error="another run is already in flight",
+        )
+
+    monkeypatch.setattr("agentforge.api.routes_runs.start_background_run", _fake_start)
+
     r = client.post("/v1/runs/start")
-    assert r.status_code == 501
+    assert r.status_code == 429
+    assert "in flight" in r.json()["detail"]
+
+
+@pytest.mark.unit
+def test_get_run_live_state_404_when_not_tracked(client: TestClient) -> None:
+    """`GET /v1/runs/{run_id}/state` returns 404 when the run_id was never
+    started or the in-memory tracker has been cleared (server restart)."""
+    r = client.get("/v1/runs/nonexistent-rid/state")
+    assert r.status_code == 404
+
+
+@pytest.mark.unit
+def test_get_run_live_state_returns_tracked_state(client: TestClient) -> None:
+    """`GET /v1/runs/{run_id}/state` returns the runner's in-memory state."""
+    from agentforge.api import run_runner
+
+    state = run_runner.RunState(
+        run_id="rid-state-test",
+        status="running",
+        run_type="smoke",
+        count=1,
+        attacks_executed=2,
+    )
+    run_runner._set(state)
+    try:
+        r = client.get("/v1/runs/rid-state-test/state")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["run_id"] == "rid-state-test"
+        assert body["status"] == "running"
+        assert body["attacks_executed"] == 2
+    finally:
+        with run_runner._lock:
+            run_runner._active_runs.pop("rid-state-test", None)
+
+
+@pytest.mark.unit
+def test_runs_stream_404_when_not_tracked(client: TestClient) -> None:
+    """`GET /v1/runs/{run_id}/stream` returns 404 when the run_id is not
+    tracked. Doesn't open the SSE stream."""
+    r = client.get("/v1/runs/never-existed-rid/stream")
+    assert r.status_code == 404

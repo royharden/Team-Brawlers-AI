@@ -62,6 +62,17 @@ class AgentForgeClient:
     def get_run(self, run_id: str) -> dict[str, Any]:
         return self._get_json(f"/v1/runs/{run_id}")
 
+    def start_run(self, run_type: str = "smoke", count: int = 1) -> dict[str, Any]:
+        resp = self._client.post(
+            "/v1/runs/start",
+            params={"run_type": run_type, "count": count},
+        )
+        resp.raise_for_status()
+        return cast("dict[str, Any]", resp.json())
+
+    def get_run_live_state(self, run_id: str) -> dict[str, Any]:
+        return self._get_json(f"/v1/runs/{run_id}/state")
+
     # --- reports ---------------------------------------------------------
 
     def list_reports(

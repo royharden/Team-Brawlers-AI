@@ -60,6 +60,24 @@ def test_dashboard_runs_reports_paths() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_start_run_and_get_live_state_paths() -> None:
+    """`AgentForgeClient.start_run` POSTs `/v1/runs/start?run_type=...&count=...`
+    and `get_run_live_state` GETs `/v1/runs/{run_id}/state` (sub-plan Next05 §1)."""
+    respx.post(f"{BASE_URL}/v1/runs/start").mock(
+        return_value=httpx.Response(200, json={"run_id": "abc", "status": "pending"})
+    )
+    respx.get(f"{BASE_URL}/v1/runs/abc/state").mock(
+        return_value=httpx.Response(200, json={"run_id": "abc", "status": "running"})
+    )
+    c = AgentForgeClient(base_url=BASE_URL)
+    started = c.start_run(run_type="seeded", count=3)
+    assert started["run_id"] == "abc"
+    state = c.get_run_live_state("abc")
+    assert state["status"] == "running"
+
+
+@pytest.mark.unit
+@respx.mock
 def test_approval_post_methods_hit_correct_paths() -> None:
     """`AgentForgeClient.approve / reject / dismiss` POST to
     `/v1/approval/{vr_id}/{action}?reviewer=...` (sub-plan Next04)."""

@@ -1,15 +1,25 @@
-"""/v1/runs routes — master plan §4."""
+"""/v1/runs routes — master plan §4 + Next05 §1 (live-streaming)."""
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from agentforge.api.deps import get_session
 from agentforge.api.responses import (
     RunDetail,
     RunListResponse,
+    RunLiveState,
     RunRow,
+    RunStartResponse,
+)
+from agentforge.api.run_runner import (
+    get_run_state,
+    start_background_run,
+    stream_run_events,
 )
 from agentforge.memory.models import AttackJob, AttackTrace, Run, Verdict
 
@@ -74,7 +84,58 @@ def get_run(
     )
 
 
-@router.post("/runs/start", status_code=501)
-def start_run() -> dict[str, str]:
-    """Kick off a new orchestrated run. Phase 8 wiring."""
-    raise HTTPException(status_code=501, detail="Phase 8 wiring — mutating endpoint")
+@router.post("/runs/start", response_model=RunStartResponse)
+def start_run(
+    run_type: Literal["smoke", "seeded", "exploratory"] = Query(default="smoke"),
+    count: int = Query(default=1, ge=1, le=10),
+) -> RunStartResponse:
+    """Spawn a daemon thread that runs `orchestrator.step(batch_size=count)`
+    against the live sidecar. Returns immediately with a `run_id` the
+    caller polls via `/v1/runs/{run_id}/state` or streams via
+    `/v1/runs/{run_id}/stream`.
+
+    Refuses (429) when another run is already in flight — concurrency cap
+    of 1 keeps LLM-call load predictable for the demo. Sub-plan Next05 §1.
+    """
+    state = start_background_run(run_type=run_type, count=count)
+    if state.error == "another run is already in flight":
+        raise HTTPException(status_code=429, detail=state.error)
+    return RunStartResponse(
+        run_id=state.run_id,
+        status=state.status,
+        run_type=state.run_type,
+        count=state.count,
+    )
+
+
+@router.get("/runs/{run_id}/state", response_model=RunLiveState)
+def get_run_live_state(run_id: str) -> RunLiveState:
+    """Return the in-memory state of a background run started via
+    `POST /v1/runs/start`. 404 if the run_id was never tracked
+    (e.g. server restart cleared the in-memory dict)."""
+    state = get_run_state(run_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"run_id not tracked: {run_id}")
+    return RunLiveState(**state.model_dump())
+
+
+@router.get("/runs/{run_id}/stream")
+def stream_run(run_id: str) -> StreamingResponse:
+    """Server-Sent Events stream of the run's state transitions.
+
+    Each event is a `data:`-prefixed JSON-serialized `RunLiveState`. Stream
+    closes when the run reaches a terminal state (completed/failed/halted)
+    AND one extra tick has been emitted so consumers receive the final
+    state. Sends a `: keep-alive` comment every 15s of unchanged state to
+    survive intermediate proxies. Sub-plan Next05 §1.
+    """
+    if get_run_state(run_id) is None:
+        raise HTTPException(status_code=404, detail=f"run_id not tracked: {run_id}")
+    return StreamingResponse(
+        stream_run_events(run_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
