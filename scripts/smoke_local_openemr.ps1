@@ -1,6 +1,6 @@
 # smoke_local_openemr.ps1
 # Verifies the local Co-Pilot target Docker stack is reachable before the
-# adversarial platform sends any traffic. Idempotent and read-only — does NOT
+# adversarial platform sends any traffic. Idempotent and read-only -- does NOT
 # start containers, does NOT seed patients. Run from anywhere; uses absolute URLs.
 #
 # Usage:
@@ -29,21 +29,41 @@ function Test-Endpoint {
         [int]$Timeout = 5,
         [bool]$AllowAnyStatus = $false
     )
-    try {
-        $resp = Invoke-WebRequest -Uri $Url -TimeoutSec $Timeout -Method GET `
-                  -UseBasicParsing -SkipHttpErrorCheck -SkipCertificateCheck -ErrorAction Stop
-        $code = $resp.StatusCode
-        if ($AllowAnyStatus -or ($code -ge 200 -and $code -lt 500)) {
-            return [pscustomobject]@{ Name=$Name; Url=$Url; Status="OK ($code)"; Ok=$true }
-        } else {
-            return [pscustomobject]@{ Name=$Name; Url=$Url; Status="HTTP $code"; Ok=$false }
+    # Compatibility note: -SkipHttpErrorCheck and -SkipCertificateCheck are PowerShell 7+ only.
+    # On Windows PowerShell 5.1 we approximate via [Net.ServicePointManager] + try/catch on 4xx.
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        try {
+            $resp = Invoke-WebRequest -Uri $Url -TimeoutSec $Timeout -Method GET `
+                      -UseBasicParsing -SkipHttpErrorCheck -SkipCertificateCheck -ErrorAction Stop
+            $code = $resp.StatusCode
+        } catch {
+            return [pscustomobject]@{ Name=$Name; Url=$Url; Status="DOWN ($($_.Exception.Message))"; Ok=$false }
         }
-    } catch {
-        return [pscustomobject]@{ Name=$Name; Url=$Url; Status="DOWN ($($_.Exception.Message))"; Ok=$false }
+    } else {
+        # PS 5.1 fallback: skip SSL validation via callback; treat 4xx as OK if AllowAnyStatus
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+        try {
+            $resp = Invoke-WebRequest -Uri $Url -TimeoutSec $Timeout -Method GET -UseBasicParsing -ErrorAction Stop
+            $code = $resp.StatusCode
+        } catch [System.Net.WebException] {
+            $r = $_.Exception.Response
+            if ($r -ne $null) {
+                $code = [int]$r.StatusCode
+            } else {
+                return [pscustomobject]@{ Name=$Name; Url=$Url; Status="DOWN ($($_.Exception.Message))"; Ok=$false }
+            }
+        } catch {
+            return [pscustomobject]@{ Name=$Name; Url=$Url; Status="DOWN ($($_.Exception.Message))"; Ok=$false }
+        }
+    }
+    if ($AllowAnyStatus -or ($code -ge 200 -and $code -lt 500)) {
+        return [pscustomobject]@{ Name=$Name; Url=$Url; Status="OK ($code)"; Ok=$true }
+    } else {
+        return [pscustomobject]@{ Name=$Name; Url=$Url; Status="HTTP $code"; Ok=$false }
     }
 }
 
-Write-Host "AgentForge — local Co-Pilot target smoke check" -ForegroundColor Cyan
+Write-Host "AgentForge -- local Co-Pilot target smoke check" -ForegroundColor Cyan
 Write-Host "  TargetBase   = $TargetBase"
 Write-Host "  SidecarBase  = $SidecarBase"
 Write-Host ""
@@ -63,9 +83,9 @@ if ($failed) {
     Write-Host ""
     Write-Host "[FAIL] $($failed.Count) endpoint(s) not reachable." -ForegroundColor Red
     Write-Host "If Docker stack is down, start with:" -ForegroundColor Yellow
-    Write-Host "  cd <openemr-repo>; docker compose -f docker/development-easy/docker-compose.yml up -d"
+    Write-Host '  cd <openemr-repo>; docker compose -f docker/development-easy/docker-compose.yml up -d'
     Write-Host "Then start the sidecar separately:"
-    Write-Host "  cd openemr/agent/copilot-api; uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    Write-Host '  cd openemr/agent/copilot-api; uvicorn app.main:app --host 0.0.0.0 --port 8000'
     exit 1
 } else {
     Write-Host ""

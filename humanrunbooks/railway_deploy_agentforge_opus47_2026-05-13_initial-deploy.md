@@ -1,8 +1,9 @@
 # railway_deploy_agentforge_opus47_2026-05-13 — Initial AgentForge Deploy On Railway (New Project)
 
 **For:** Roy Harden — Gauntlet AgentForge Week 3 (Austin Admission)
-**Date:** 2026-05-13
-**Verified by:** Claude Opus 4.7 — every env var name, command, and expected output cross-checked against `agentforge/config.py`, `agentforge/api/main.py`, `agentforge/ui/app.py`, `pyproject.toml`, and `agentforge/redteam/openrouter_client.py` on `origin/main` at the time of writing.
+**Date:** 2026-05-13 (r1) → r2 update **2026-05-13** (this revision)
+**Revision:** **r2.** Replaces r1's Nixpacks build path with a custom `Dockerfile` build path. Decision recorded in AgDR-0014 (`Team-Brawlers-AI/agentdocs/decisions/AgDR-0014-dockerize-agentforge-for-railway.md`). The Dockerfile is what `docker-compose.local.yml` uses for the local L1 gate -- byte-for-byte parity between local Compose and Railway, matching the principle the operator established for `copilot-api` in `EMR-SO/runbooks/opus47_deploy_openemr_railway_v3_mariadb.md:52`. Sub-plan execution recorded at `Team-Brawlers-AI/planning/Plan_wk3_Claude_Next01_2026-05-13_pre-railway-local-testing.md`.
+**Verified by:** Claude Opus 4.7 — every env var name, command, and expected output cross-checked against `agentforge/config.py`, `agentforge/api/main.py`, `agentforge/ui/app.py`, `pyproject.toml`, `agentforge/redteam/openrouter_client.py`, `Dockerfile`, and `docker-compose.local.yml` on `origin/main` at the time of writing.
 **Starting point:** You already have an `openemr-mvp` Railway project from the May 13 redeploy with three services (`openemr` public, `mariadb` private, `copilot-api` private). The Co-Pilot's public URL works in incognito.
 **Goal:** Stand up a **second, independent Railway project** that runs the AgentForge adversarial platform. The platform attacks your live Co-Pilot URL, persists its findings in SQLite, exposes a FastAPI dashboard, and surfaces a Streamlit operator UI. Two public URLs by the end: `agentforge-api-production-XXXX.up.railway.app` and `agentforge-ui-production-XXXX.up.railway.app`.
 
@@ -16,7 +17,7 @@ You will:
 
 1. Confirm AgentForge code is pushed to `github.com/royharden/Team-Brawlers-AI` `main` (1 min).
 2. **Create a NEW, separate Railway project** named `agentforge` (1 min).
-3. Add the `agentforge-api` service — FastAPI on port 8100, Nixpacks-built from your repo (4 min).
+3. Add the `agentforge-api` service — FastAPI on port 8100, **Dockerfile-built** from your repo (4 min).
 4. Set 16 env vars on `agentforge-api` (OpenRouter + Anthropic + Langfuse + budget + target URL) (4 min).
 5. Mount a persistent volume on `agentforge-api` at `/data` for the SQLite DB and notifier queue (1 min).
 6. Generate a public HTTPS domain for `agentforge-api` (30 sec). ← URL #1 of 2
@@ -140,14 +141,10 @@ You should see your existing `openemr-mvp` project tile. **Leave it alone** for 
    agentforge-api
    ```
    → Save.
-6. **Root directory:** leave blank. The Python project IS the repo root.
-7. **Build:** Railway's **Nixpacks** auto-detects `pyproject.toml` + Poetry and runs `poetry install --no-dev`. Confirm in the Settings panel that the build provider shows **Nixpacks** (not Docker — that would expect a Dockerfile we don't ship).
+6. **Root directory:** leave blank. The Dockerfile IS at the repo root (`Team-Brawlers-AI/Dockerfile`).
+7. **Build:** Railway detects the **`Dockerfile`** at the repo root and builds from it. Confirm in the Settings panel that the build provider shows **Dockerfile** (not Nixpacks). The Dockerfile pins `FROM python:3.11-slim`, installs Poetry 2.4.1, and runs `poetry install --no-root --without dev` then `poetry install --only-root`. This is byte-for-byte the same image as `docker-compose.local.yml` builds.
 
-> ℹ️ **If Nixpacks misfires** (e.g., picks the wrong Python version): override the **Build Command** to:
-> ```
-> pip install poetry==1.8.3 && poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi --without dev
-> ```
-> Python version pin (set as a build env var below): `NIXPACKS_PYTHON_VERSION=3.11`.
+> ℹ️ **What r1 said vs what r2 says.** r1 of this runbook used Nixpacks. r2 (this revision) uses a custom Dockerfile per AgDR-0014. If the Railway service is showing **Nixpacks** as the build provider after a `git pull`, force a redeploy after the new `Dockerfile` lands on `main` -- Railway re-detects on each deploy.
 
 ### 5.2 Set The Start Command
 
@@ -193,7 +190,7 @@ uvicorn agentforge.api.main:app --host 0.0.0.0 --port $PORT
 | `ALLOW_BROWSER_AUTOMATION` | `false` | Playwright adapter mode is OFF by default. |
 | `ALLOW_TARGET_FIXES_PUSH` | `false` | The Documentation Agent never pushes target fixes without operator approval. |
 | `PYTHONUNBUFFERED` | `1` | Ensures logs stream to Railway immediately. |
-| `NIXPACKS_PYTHON_VERSION` | `3.11` | Forces Python 3.11 to match local dev. |
+| ~~`NIXPACKS_PYTHON_VERSION`~~ | ~~`3.11`~~ | **Removed in r2.** Python 3.11 is now pinned in the Dockerfile (`FROM python:3.11-slim`). |
 
 > 🛟 **Common gotcha (1):** `PLATFORM_DB_URL` needs FOUR slashes (`sqlite:////data/...`). Three slashes (`sqlite:///./data/...`) is the LOCAL relative-path form; four slashes is the ABSOLUTE-path form Railway needs because the working directory inside the container isn't your repo root.
 >
@@ -205,18 +202,19 @@ Deploy will trigger automatically after the first variable add. Watch:
 
 `agentforge-api` → **Deployments** → latest → **View Logs**.
 
-Good log sequence:
+Good log sequence (r2, Dockerfile path):
 
 ```text
 ─── Build ───
-Detected Python project (Nixpacks)
-Installing Python 3.11
-Installing poetry...
-Installing dependencies via poetry...
-   • Installing fastapi (0.115.x)
-   • Installing anthropic (0.40.x)
-   • Installing openai (1.54.x)
-   ...
+#1 Building Dockerfile
+#2 FROM python:3.11-slim
+#3 RUN apt-get update && apt-get install -y curl build-essential
+#4 RUN pip install --upgrade pip && pip install poetry==2.4.1
+#5 COPY pyproject.toml poetry.lock ./
+#6 RUN poetry install --no-root --without dev
+#7 COPY agentforge ./agentforge
+#8 COPY config ./config ... COPY scripts ./scripts ... COPY reports ./reports
+#9 RUN poetry install --only-root
 ─── Deploy ───
 INFO:     Started server process [1]
 INFO:     Waiting for application startup.
@@ -227,6 +225,8 @@ INFO:     Uvicorn running on http://0.0.0.0:8100 (Press CTRL+C to quit)
 > ❌ `pydantic_settings` errors / `OPENROUTER_API_KEY required` → Your variables missed the `OPENROUTER_API_KEY`. Recheck the table above.
 >
 > ❌ `sqlite3.OperationalError: unable to open database file` → The `/data` volume isn't mounted yet. Do §6.3 first.
+>
+> ❌ `Error: The current project could not be installed: Readme path /app/README.md does not exist.` → The Dockerfile expects `COPY README.md ./` to land before `RUN poetry install --only-root`. Confirm that line is present in the Dockerfile on `main`.
 >
 > ❌ Build fails on `poetry install` with `Resolving dependencies (failed)` → Most likely a transient PyPI mirror issue; redeploy from the Deployments tab.
 
@@ -330,7 +330,6 @@ The `--browser.gatherUsageStats=false` flag suppresses Streamlit's first-run tel
 |---|---|---|
 | `PORT` | `8501` | Streamlit default. Railway also injects `$PORT`. |
 | `AGENTFORGE_API_URL` | `http://${{agentforge-api.RAILWAY_PRIVATE_DOMAIN}}:8100` | **Use the reference picker** — chain icon next to the value field. Resolves to `http://agentforge-api.railway.internal:8100`. |
-| `NIXPACKS_PYTHON_VERSION` | `3.11` | |
 | `PYTHONUNBUFFERED` | `1` | |
 
 > 🛟 **Gotcha (1):** Don't generate a public domain on `agentforge-ui` until you've confirmed `agentforge-api` is up. The UI page-load will hammer `/v1/dashboard`; if the API is still building, the UI shows a wall of errors on first impression.
@@ -345,13 +344,17 @@ Good log sequence:
 
 ```text
 ─── Build ───
-Detected Python project (Nixpacks)
-Installing Python 3.11
-Installing dependencies via poetry...
+#1 Building Dockerfile
+#2 FROM python:3.11-slim
+#3 RUN poetry install --no-root --without dev
+#4 COPY agentforge ./agentforge ... COPY README.md ./
+#5 RUN poetry install --only-root
 ─── Deploy ───
 Streamlit server started on http://0.0.0.0:8501
 You can now view your Streamlit app in your browser.
 ```
+
+> ℹ️ The UI service reuses the SAME Dockerfile as the API service. Railway builds the image once per service deployment (no shared image cache across services), but the layer cache makes the second build near-instant if `poetry.lock` is unchanged.
 
 Streamlit binds to the port and serves; no further startup messages needed.
 
@@ -409,7 +412,7 @@ Railway's UI varies. The simplest path is:
    ```
 3. Confirm 3 VRs land at `/data/reports/VR-{0001,0002,0003}-*.{md,html}`.
 
-If the Shell tab isn't available on your plan: the three VRs are already in the repo at `reports/VR-0001.md` etc, baked into the Nixpacks image. They'll appear in the dashboard automatically on first GET — they're read from the working directory, not the volume.
+If the Shell tab isn't available on your plan: the three VRs are already in the repo at `reports/VR-0001.md` etc, baked into the Docker image via `COPY reports ./reports` (AgDR-0014 Q8 decision: bake). They appear in the dashboard automatically — they're read from the working directory, not the volume.
 
 ### 9.2 First Live Smoke Against The Co-Pilot
 
@@ -499,14 +502,15 @@ Submit per the Wk3 submission portal:
 
 ## 11. Troubleshooting
 
-### 11.1 `agentforge-api` build fails on Nixpacks
+### 11.1 `agentforge-api` build fails (Dockerfile path)
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `Could not find a version that satisfies the requirement` | Wrong Python version | Add `NIXPACKS_PYTHON_VERSION=3.11` to the build env vars and redeploy. |
-| `Resolving dependencies (failed)` once, then works | Transient PyPI mirror failure | Click **Redeploy**. |
-| `pyproject.toml not found` | Service root directory was set to a sub-path | Settings → leave root directory blank. |
+| `Resolving dependencies (failed)` once, then works | Transient PyPI mirror failure inside the `poetry install` Docker layer | Click **Redeploy**. The Docker layer cache survives, so the retry is fast. |
+| `Dockerfile not found` | Service root directory was set to a sub-path | Settings → leave root directory blank. The Dockerfile is at the AgentForge repo root. |
+| `The current project could not be installed: Readme path '/app/README.md' does not exist.` | `COPY README.md ./` missing from the Dockerfile, OR `.dockerignore` excludes it without a whitelist | Confirm Dockerfile has `COPY README.md ./` before `RUN poetry install --only-root`. Confirm `.dockerignore` has `!README.md`. |
 | Build OK but service crashes on boot with `ImportError` | Optional extra (e.g. `playwright`) was assumed installed | Set `ALLOW_BROWSER_AUTOMATION=false`. The platform skips Playwright imports when this is false. |
+| Railway shows **Nixpacks** as build provider despite the Dockerfile in the repo | Service was created from an older commit before the Dockerfile landed | Force a redeploy after the `Dockerfile`-bearing commit reaches `origin/main`. Railway re-detects build provider on each deploy. |
 
 ### 11.2 `agentforge-api` boots but `/healthz` returns 502
 
@@ -572,6 +576,7 @@ If `data/agentforge.sqlite` disappears after a redeploy:
 ## 13. Defense Lines For The Interview
 
 - "AgentForge runs as a **separate** Railway project from the Co-Pilot. Attacker and target have different failure domains. The platform attacks the Co-Pilot through its **public HTTPS surface** — the same path a real attacker would use, not via Railway private networking."
+- "Build path is byte-for-byte parity with local Compose. Same `Dockerfile` runs locally and on Railway -- `docker compose pull` is the migration story, not a build-path port. Matches the precedent the operator set for `copilot-api` in the OpenEMR project (AgDR-0014)."
 - "The platform is two services: a FastAPI on port 8100 with a SQLite-on-volume persistence layer, and a Streamlit operator UI that talks to the API via Railway's private network. The UI never imports the platform's DB layer — a CI lint (`tests/unit/ui/test_no_db_imports.py`) enforces it."
 - "Provider isolation is also CI-lint-enforced: the OpenAI SDK is only imported by `agentforge/redteam/openrouter_client.py`; the Anthropic SDK is only imported by `agentforge/redteam/anthropic_client.py` (fallback path); the Judge code never imports the Red Team package at all. The independence story holds at the import level, not just by convention."
 - "Red Team runs on OpenRouter Cognitive Computations Dolphin-Mistral 24B Venice on the `:free` tier — $0/token during development. Judges and Documentation run on Anthropic Sonnet/Haiku. Cross-vendor judge independence is restored by AgDR-0013, which supersedes the AgDR-0001 transitional same-vendor compromise."

@@ -1,0 +1,73 @@
+# Local Compose for AgentForge. Used for the pre-Railway L1 gate.
+# Railway does NOT use this file; Railway builds the Dockerfile per service
+# (one for agentforge-api, one for agentforge-ui), wiring them via Railway
+# private networking with start commands set per service.
+#
+# Why a separate Compose file and NOT folded into EMR-SO/openemr/docker/development-easy:
+#   - AgentForge is the attacker; OpenEMR is the target. Keeping them in separate
+#     compose stacks mirrors the production Railway topology where AgentForge lives
+#     in its own Railway project, separate from openemr-mvp.
+#   - The platform reaches OpenEMR/sidecar via host.docker.internal -- the same
+#     "public surface from outside the target's network" the deployed AgentForge
+#     uses to hit the deployed Co-Pilot URL.
+
+name: agentforge-local
+
+services:
+  agentforge-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agentforge:local
+    container_name: agentforge-api
+    env_file: .env
+    environment:
+      # Override target paths so they resolve from inside the container
+      TARGET_BASE_URL: http://host.docker.internal:8300
+      TARGET_HTTPS_BASE_URL: https://host.docker.internal:9300
+      COPILOT_SIDECAR_URL: http://host.docker.internal:8000
+      PLATFORM_DB_URL: sqlite:////app/data/agentforge.sqlite
+    volumes:
+      # SQLite DB lives in a Docker named volume (NOT a bind-mount) -- OneDrive's
+      # file-sync layer causes "disk I/O error" on SQLite WAL/journal writes when
+      # the data/ folder is under OneDrive. Named volume sidesteps OneDrive entirely.
+      # Trade: cannot `Get-ChildItem data/` from host; use `docker compose exec agentforge-api ls data/` instead.
+      - agentforge-data:/app/data
+      # Bind-mounts for VRs + regression cases keep them on host for inspection.
+      # These are write-once-from-app-perspective so OneDrive lock contention is rare.
+      - ./reports:/app/reports
+      - ./evals/regression:/app/evals/regression
+    ports:
+      - "8100:8100"
+    extra_hosts:
+      # Required on Linux Docker; harmless on Windows / Mac (Docker Desktop resolves automatically)
+      - "host.docker.internal:host-gateway"
+    # Run Alembic upgrade against the (possibly-empty) volume before uvicorn binds.
+    # On first boot this creates the schema in the named volume; subsequent boots no-op.
+    command: >
+      sh -c "alembic upgrade head &&
+      uvicorn agentforge.api.main:app --host 0.0.0.0 --port 8100"
+
+  agentforge-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agentforge:local
+    container_name: agentforge-ui
+    environment:
+      AGENTFORGE_API_URL: http://agentforge-api:8100
+    ports:
+      - "8501:8501"
+    depends_on:
+      - agentforge-api
+    command: >
+      streamlit run agentforge/ui/app.py
+      --server.port=8501
+      --server.address=0.0.0.0
+      --server.headless=true
+      --browser.gatherUsageStats=false
+
+volumes:
+  agentforge-data:
+    # SQLite + alembic_version + notifier_queue.jsonl live here. Wiped by `docker compose down -v`.
+    # First boot is empty; Alembic upgrade inside the API container populates the schema.

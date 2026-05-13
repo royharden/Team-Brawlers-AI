@@ -1,0 +1,50 @@
+# Build / test artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local state -- must NOT bake into the image. Mounted at runtime via Compose volume.
+data/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.db
+
+# Editor / VCS / OS
+.git/
+.gitattributes
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Internal docs that don't belong in the runtime image
+agentdocs/
+planning/
+arcprep/
+humanrunbooks/
+runbooks/
+*.md
+!README.md
+.claude/
+.codex/
+.cursor/
+.codespell-ignore-words.txt
+
+# Tests run native via Poetry, not in the container
+tests/
+
+# Python virtualenvs
+.venv/
+venv/
+env/
+
+# OpenEMR clone present at outer repo (not in build context anyway, just defensive)
+openemr/
