@@ -68,7 +68,25 @@ class RedTeamAgent:
         # this client before degrading to deterministic-only. Factory wires
         # `RedTeamOpenAIClient` here when `OPENAI_API_KEY` is set.
         self._fallback_client = fallback_client
+        # Sub-plan Next05 §4: track which client served the most recent
+        # successful paraphrase so the orchestrator's cost_ledger can read
+        # `last_usage` from the right one. None until the first paraphrase
+        # call; otherwise points at `_client` or `_fallback_client`.
+        self._last_paraphrase_source: Any = None
         self._rng = random.Random(rng_seed)
+
+    @property
+    def last_usage(self) -> Any:
+        """The most-recently-used client's `last_usage` (TokenUsage | None).
+
+        Used by the orchestrator's `_persist_cost_ledger` via
+        `usage_sources["red_team"]`. None when the agent has not paraphrased
+        yet, or when the most recent attempt fell all the way through to
+        deterministic mutators.
+        """
+        if self._last_paraphrase_source is None:
+            return None
+        return getattr(self._last_paraphrase_source, "last_usage", None)
 
     def generate(self, job: AttackJob) -> MutatedAttack:
         """Sample a seed for (job.category, job.strategy); apply mutator chain;
@@ -229,9 +247,11 @@ class RedTeamAgent:
         AgDR-0024 — second-tier fallback chain.
         """
         if self._client is None:
+            self._last_paraphrase_source = None
             return (None, None, "deterministic-mutator-only")
         try:
             text, info = self._client.paraphrase(seed, current_prompt)
+            self._last_paraphrase_source = self._client
             # Back-compat label kept for tests that pre-date AgDR-0024 — the
             # primary path was historically Anthropic, then OpenRouter; the
             # label "anthropic-paraphrase" is now a generic "primary client
@@ -244,15 +264,18 @@ class RedTeamAgent:
             )
         if self._fallback_client is None:
             logger.warning("No fallback client wired; degrading to deterministic")
+            self._last_paraphrase_source = None
             return (None, None, "deterministic-mutator-only")
         try:
             text, info = self._fallback_client.paraphrase(seed, current_prompt)
+            self._last_paraphrase_source = self._fallback_client
             return (text, info, "openai-fallback-paraphrase")
         except Exception as exc:
             logger.warning(
                 "Fallback paraphrase also failed: {}; degrading to deterministic",
                 exc,
             )
+            self._last_paraphrase_source = None
             return (None, None, "deterministic-mutator-only")
 
     def _pick_seed(self, job: AttackJob) -> dict[str, Any]:

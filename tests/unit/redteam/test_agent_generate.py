@@ -244,3 +244,89 @@ def test_generate_uses_primary_when_primary_succeeds_even_if_fallback_wired() ->
     agent.generate(_job())
     assert primary.calls
     assert not fallback.calls, "fallback must not fire when primary succeeds"
+
+
+# --- Sub-plan Next05 §4: agent.last_usage proxies the right client ----------
+
+
+class _FakeWithUsage:
+    """A primary/fallback that carries `last_usage` like the real wrappers."""
+
+    def __init__(self, label: str, fail: bool = False) -> None:
+        self.label = label
+        self.fail = fail
+        self.last_usage: object = None
+
+    def paraphrase(
+        self, seed: dict[str, Any], current_prompt: str
+    ) -> tuple[str, RefusalInfo | None]:
+        from agentforge.llm.tokens import TokenUsage
+
+        if self.fail:
+            raise RuntimeError(f"{self.label} failed")
+        self.last_usage = TokenUsage(
+            input_tokens=100 if self.label == "primary" else 200,
+            output_tokens=10 if self.label == "primary" else 20,
+            model=self.label,
+        )
+        return ("PARA: " + current_prompt[:16], None)
+
+
+@pytest.mark.unit
+def test_agent_last_usage_reads_primary_when_primary_succeeds() -> None:
+    """`RedTeamAgent.last_usage` returns the PRIMARY client's `last_usage`
+    when the primary served the most recent call (sub-plan Next05 §4)."""
+    primary = _FakeWithUsage("primary")
+    fallback = _FakeWithUsage("fallback")
+    agent = RedTeamAgent(
+        SeedCatalog(),
+        _stack(),
+        AttackLineage(),
+        anthropic_client=primary,
+        fallback_client=fallback,
+        rng_seed=5,
+    )
+    assert agent.last_usage is None
+    agent.generate(_job())
+    usage = agent.last_usage
+    assert usage is not None
+    assert usage.input_tokens == 100
+    assert usage.model == "primary"
+
+
+@pytest.mark.unit
+def test_agent_last_usage_reads_fallback_when_primary_fails() -> None:
+    """When the primary raises and the fallback succeeds, `agent.last_usage`
+    reads from the FALLBACK (sub-plan Next05 §4)."""
+    primary = _FakeWithUsage("primary", fail=True)
+    fallback = _FakeWithUsage("fallback")
+    agent = RedTeamAgent(
+        SeedCatalog(),
+        _stack(),
+        AttackLineage(),
+        anthropic_client=primary,
+        fallback_client=fallback,
+        rng_seed=6,
+    )
+    agent.generate(_job())
+    usage = agent.last_usage
+    assert usage is not None
+    assert usage.input_tokens == 200
+    assert usage.model == "fallback"
+
+
+@pytest.mark.unit
+def test_agent_last_usage_clears_when_both_fail_and_deterministic_fires() -> None:
+    """When BOTH clients fail and the agent degrades to deterministic,
+    `agent.last_usage` returns None — orchestrator falls back to the
+    class-level estimate (sub-plan Next05 §4)."""
+    agent = RedTeamAgent(
+        SeedCatalog(),
+        _stack(),
+        AttackLineage(),
+        anthropic_client=_FailingClient(),
+        fallback_client=_FailingClient(),
+        rng_seed=7,
+    )
+    agent.generate(_job())
+    assert agent.last_usage is None

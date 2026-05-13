@@ -273,10 +273,11 @@ def build_orchestrator(
     pricing_path = _project_root() / "config" / "pricing.yml"
     pricing = PricingTable.from_yaml(pricing_path) if pricing_path.is_file() else None
 
-    # Map agent_role → wrapper-with-.last_usage. Red Team uses a separate
-    # OpenRouter client and its cost is $0 on the :free tier; we leave it
-    # to the class-level estimate for now.
-    usage_sources: dict[str, object] = {}
+    # Map agent_role → wrapper-with-.last_usage.
+    # Sub-plan Next05 §4: `red_team` now points at the RedTeamAgent itself —
+    # its `last_usage` property reads from whichever client (primary
+    # OpenRouter or AgDR-0024 OpenAI fallback) just paraphrased.
+    usage_sources: dict[str, object] = {"red_team": redteam}
     if haiku_client is not None:
         usage_sources["internal_judge"] = haiku_client
     if sonnet_judge_client is not None:

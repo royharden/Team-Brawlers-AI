@@ -28,7 +28,6 @@ AgDR-0016 records the decision to materialize these Protocols.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from typing import Any
 
 import anthropic
@@ -41,32 +40,17 @@ from agentforge.judge.prompts import (
     MalformedJudgeResponse,
 )
 from agentforge.judge.rubrics.base import RubricOutcome
+from agentforge.llm.tokens import TokenUsage
 from agentforge.orchestrator.orchestrator import (
     CategoryStrategy,
     PlannerResponse,
 )
 
-# --------------------------------------------------------------------------- TokenUsage
-
-
-@dataclass(frozen=True)
-class TokenUsage:
-    """Per-call token + model record reported by the Anthropic SDK.
-
-    Sub-plan Next03 §4.2 (AgDR-0019). Each wrapper writes its most-recent
-    call's usage to ``self.last_usage`` so the orchestrator's
-    ``_persist_cost_ledger`` can record real per-role token counts and
-    compute cost from ``config/pricing.yml`` (closes AgDR-0016 #3 +
-    AgDR-0017 #1).
-
-    A None value means the wrapper has not yet been called OR the most
-    recent call failed before ``response.usage`` could be read. Consumers
-    must defensively handle both shapes.
-    """
-
-    input_tokens: int
-    output_tokens: int
-    model: str
+# AgDR-0019 originally defined `TokenUsage` here; sub-plan Next05 §4 moved
+# it to `agentforge.llm.tokens` so the Red Team clients can share the
+# same shape without importing this module's `anthropic` SDK. Re-exported
+# here for back-compat — every pre-Next05 `from agentforge.llm.anthropic_clients
+# import TokenUsage` keeps working.
 
 
 def _extract_usage(resp: Any, model: str) -> TokenUsage | None:

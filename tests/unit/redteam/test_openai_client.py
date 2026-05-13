@@ -81,6 +81,37 @@ def test_paraphrase_detects_refusal_when_model_declines() -> None:
 
 
 @pytest.mark.unit
+def test_paraphrase_records_token_usage_on_success() -> None:
+    """`last_usage` is populated from `completion.usage` after a successful
+    call (sub-plan Next05 §4)."""
+    fake = _FakeOpenAI(canned_text="rewrite")
+    # Inject a fake `usage` object on the completion the fake returns.
+    fake_completions = fake.chat.completions
+
+    class _Usage:
+        prompt_tokens = 555
+        completion_tokens = 42
+
+    real_create = fake_completions.create
+
+    def _create_with_usage(**kwargs: Any) -> Any:
+        comp = real_create(**kwargs)
+        comp.usage = _Usage()
+        return comp
+
+    fake_completions.create = _create_with_usage  # type: ignore[method-assign]
+
+    with patch("agentforge.redteam.openai_client.OpenAI", return_value=fake):
+        client = RedTeamOpenAIClient(api_key="sk-test", model="gpt-4o-mini")
+        assert client.last_usage is None
+        client.paraphrase({}, "rewrite me")
+    assert client.last_usage is not None
+    assert client.last_usage.input_tokens == 555
+    assert client.last_usage.output_tokens == 42
+    assert client.last_usage.model == "gpt-4o-mini"
+
+
+@pytest.mark.unit
 def test_paraphrase_passes_model_and_system_prompt() -> None:
     """The configured model id + the cybersecurity-research system prompt
     are passed to `chat.completions.create` (AgDR-0024)."""

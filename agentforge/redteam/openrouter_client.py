@@ -22,6 +22,7 @@ from loguru import logger
 from openai import OpenAI
 
 from agentforge.judge.deterministic.refusal_taxonomy import RefusalInfo, detect_refusal
+from agentforge.llm.tokens import TokenUsage
 
 _OPENROUTER_BASE_URL_DEFAULT = "https://openrouter.ai/api/v1"
 
@@ -65,6 +66,11 @@ class RedTeamOpenRouterClient:
         self._x_title = x_title
         self._max_tokens = max_tokens
         self._client: OpenAI | None = None
+        # Sub-plan Next05 §4: per-call token usage so the orchestrator's
+        # cost_ledger captures real Red Team spend (paid OpenRouter SKUs
+        # have non-zero pricing.yml entries; the `:free` tier stays $0
+        # but pinning the model name helps the dashboard's role breakdown).
+        self.last_usage: TokenUsage | None = None
         logger.debug(
             "RedTeamOpenRouterClient init (model={}, base_url={}, fallback={})",
             model,
@@ -96,6 +102,17 @@ class RedTeamOpenRouterClient:
                 {"role": "user", "content": current_prompt},
             ],
         )
+        # Sub-plan Next05 §4: capture the actual usage on the model that
+        # responded (could be primary or fallback depending on which
+        # `_one_call` we landed in).
+        try:
+            self.last_usage = TokenUsage(
+                input_tokens=int(completion.usage.prompt_tokens),  # type: ignore[union-attr]
+                output_tokens=int(completion.usage.completion_tokens),  # type: ignore[union-attr]
+                model=model,
+            )
+        except (AttributeError, TypeError, ValueError):
+            self.last_usage = None
         try:
             return completion.choices[0].message.content or ""
         except (IndexError, AttributeError):
@@ -113,6 +130,9 @@ class RedTeamOpenRouterClient:
         deterministic mutation.
         """
         _ = seed  # currently unused; reserved for richer context
+        # Reset usage so a failed call doesn't leak the prior call's tokens
+        # into the orchestrator's cost_ledger row.
+        self.last_usage = None
 
         try:
             text = self._one_call(self._model, current_prompt)

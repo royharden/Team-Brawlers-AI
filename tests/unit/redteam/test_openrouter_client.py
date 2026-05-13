@@ -181,6 +181,80 @@ def test_rate_limit_no_fallback_propagates(
 
 
 @pytest.mark.unit
+def test_records_token_usage_on_successful_call(
+    fake_openai_factory: list[_FakeOpenAI],
+) -> None:
+    """`last_usage` is populated from the SDK's `completion.usage` after a
+    successful paraphrase (sub-plan Next05 §4)."""
+    client = RedTeamOpenRouterClient(
+        api_key="sk-or-test",
+        model="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+    )
+    client._ensure()  # type: ignore[attr-defined]
+    fake = fake_openai_factory[0]
+
+    class _Usage:
+        prompt_tokens = 1234
+        completion_tokens = 56
+
+    real_create = fake.chat.completions.create
+
+    def _create_with_usage(**kwargs: Any) -> Any:
+        comp = real_create(**kwargs)
+        comp.usage = _Usage()
+        return comp
+
+    fake.chat.completions.create = _create_with_usage  # type: ignore[method-assign]
+
+    assert client.last_usage is None
+    client.paraphrase({"id": "seed_x"}, "rewrite me")
+    assert client.last_usage is not None
+    assert client.last_usage.input_tokens == 1234
+    assert client.last_usage.output_tokens == 56
+    assert (
+        client.last_usage.model == "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
+    )
+
+
+@pytest.mark.unit
+def test_token_usage_records_against_fallback_model_when_primary_rate_limits(
+    fake_openai_factory: list[_FakeOpenAI],
+) -> None:
+    """When the primary 429s and the fallback succeeds, `last_usage.model`
+    reflects the FALLBACK model (sub-plan Next05 §4)."""
+    client = RedTeamOpenRouterClient(
+        api_key="sk-or-test",
+        model="primary-model",
+        fallback_model="fallback-model",
+    )
+    client._ensure()  # type: ignore[attr-defined]
+    fake = fake_openai_factory[0]
+
+    class _Usage:
+        prompt_tokens = 100
+        completion_tokens = 20
+
+    # First call raises rate-limit; second (fallback) returns a completion
+    # with usage attached.
+    real_create = fake.chat.completions.create
+    call_count = {"n": 0}
+
+    def _create(**kwargs: Any) -> Any:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise _make_rate_limit_error()
+        comp = real_create(**kwargs)
+        comp.usage = _Usage()
+        return comp
+
+    fake.chat.completions.create = _create  # type: ignore[method-assign]
+
+    client.paraphrase({"id": "seed_x"}, "rewrite me")
+    assert client.last_usage is not None
+    assert client.last_usage.model == "fallback-model"
+
+
+@pytest.mark.unit
 def test_implements_redteam_client_protocol(
     fake_openai_factory: list[_FakeOpenAI],
 ) -> None:

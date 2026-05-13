@@ -21,6 +21,7 @@ from loguru import logger
 from openai import OpenAI
 
 from agentforge.judge.deterministic.refusal_taxonomy import RefusalInfo, detect_refusal
+from agentforge.llm.tokens import TokenUsage
 
 # Same offensive-pentest framing prompt the OpenRouter client uses, with an
 # additional cybersecurity-research framing tuned for OpenAI's mainstream
@@ -58,6 +59,10 @@ class RedTeamOpenAIClient:
         self._model = model
         self._max_tokens = max_tokens
         self._client: OpenAI | None = None
+        # Sub-plan Next05 §4: per-call usage so the orchestrator's
+        # cost_ledger captures real OpenAI fallback spend
+        # (gpt-4o-mini at $0.15/M in + $0.60/M out per pricing.yml).
+        self.last_usage: TokenUsage | None = None
         logger.debug("RedTeamOpenAIClient init (model={})", model)
 
     def _ensure(self) -> OpenAI:
@@ -75,6 +80,8 @@ class RedTeamOpenAIClient:
         taxonomy.
         """
         _ = seed  # reserved for richer per-seed framing
+        # Reset usage so a failed call doesn't leak prior-call tokens.
+        self.last_usage = None
         client = self._ensure()
         completion = client.chat.completions.create(
             model=self._model,
@@ -84,6 +91,14 @@ class RedTeamOpenAIClient:
                 {"role": "user", "content": current_prompt},
             ],
         )
+        try:
+            self.last_usage = TokenUsage(
+                input_tokens=int(completion.usage.prompt_tokens),  # type: ignore[union-attr]
+                output_tokens=int(completion.usage.completion_tokens),  # type: ignore[union-attr]
+                model=self._model,
+            )
+        except (AttributeError, TypeError, ValueError):
+            self.last_usage = None
         try:
             text = completion.choices[0].message.content or ""
         except (IndexError, AttributeError):
