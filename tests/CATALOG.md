@@ -316,6 +316,9 @@ the contract this catalog enforces.
 | `tests/unit/redteam/test_agent_generate.py::test_generate_with_refusal_records_refusal_signal` | `unit` | `RedTeamAgent.generate` with a fake AnthropicClient that refuses sets `refusal_observed=True` and a reframing suggestion. |
 | `tests/unit/redteam/test_agent_generate.py::test_generate_with_refusal_suggesting_carries_authorised_pentest_reframing` | `unit` | Refusal with the canonical AgDR-0001 reframing surfaces in `MutatedAttack.refusal_reframing_suggestion`. |
 | `tests/unit/redteam/test_agent_generate.py::test_generate_without_client_falls_back_to_deterministic_mutators_only` | `unit` | With no AnthropicClient injected, `RedTeamAgent.generate` produces a deterministic-mutator-only attack envelope. |
+| `tests/unit/redteam/test_agent_generate.py::test_generate_falls_through_to_fallback_client_on_primary_exception` | `unit` | When the primary `paraphrase` raises and a fallback_client is wired, |
+| `tests/unit/redteam/test_agent_generate.py::test_generate_degrades_to_deterministic_when_both_clients_fail` | `unit` | When the primary AND the fallback both raise, the agent keeps the |
+| `tests/unit/redteam/test_agent_generate.py::test_generate_uses_primary_when_primary_succeeds_even_if_fallback_wired` | `unit` | The fallback client is NEVER called when the primary succeeds — no |
 | `tests/unit/redteam/test_lineage.py::test_record_then_query_parents_and_children` | `unit` | `AttackLineage.record` then `ancestors` / `descendants` returns expected single-level relationships. |
 | `tests/unit/redteam/test_lineage.py::test_ancestors_walk_back_to_root_inclusive_left` | `unit` | `AttackLineage.ancestors` walks root → leaf exclusive of the leaf. |
 | `tests/unit/redteam/test_lineage.py::test_descendants_breadth_first_excludes_self` | `unit` | `AttackLineage.descendants` returns BFS order, excludes the root id. |
@@ -343,6 +346,9 @@ the contract this catalog enforces.
 | `tests/unit/redteam/test_mutators.py::test_trust_mutator_prepends_authorized_we_have_worked_together_framing` | `unit` | `TrustMutator.apply` prepends the trust/familiarity framing. |
 | `tests/unit/redteam/test_mutators.py::test_trust_mutator_applicable_to_data_exfiltration` | `unit` | `TrustMutator.applicable_to(data_exfiltration)` is True. |
 | `tests/unit/redteam/test_mutators.py::test_all_mutators_are_deterministic_given_same_seed_int` | `unit` | Apply each mutator twice with same input; outputs must match exactly. |
+| `tests/unit/redteam/test_openai_client.py::test_paraphrase_returns_rewritten_text_when_no_refusal` | `unit` | `paraphrase` returns the model's text + None refusal_info when the |
+| `tests/unit/redteam/test_openai_client.py::test_paraphrase_detects_refusal_when_model_declines` | `unit` | Refusal-tagged response → refusal_info populated; text still returned |
+| `tests/unit/redteam/test_openai_client.py::test_paraphrase_passes_model_and_system_prompt` | `unit` | The configured model id + the cybersecurity-research system prompt |
 | `tests/unit/redteam/test_openrouter_client.py::test_paraphrase_happy_path` | `unit` | (no docstring) test_paraphrase_happy_path |
 | `tests/unit/redteam/test_openrouter_client.py::test_refusal_text_detected` | `unit` | (no docstring) test_refusal_text_detected |
 | `tests/unit/redteam/test_openrouter_client.py::test_extra_headers_propagate` | `unit` | (no docstring) test_extra_headers_propagate |
