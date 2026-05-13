@@ -59,7 +59,9 @@ DEFAULT_ASSUMPTIONS: dict[str, RoleAssumption] = {
     ),
     "red_team": RoleAssumption(
         provider="openrouter",
-        model="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        # AgDR-0022: dolphin model de-listed from OpenRouter; defaulted to
+        # the largest available `:free` SKU. $0 cost regardless.
+        model="nvidia/nemotron-3-super-120b-a12b:free",
         input_tokens=800,
         output_tokens=400,
         calls_per_run=Decimal("1"),

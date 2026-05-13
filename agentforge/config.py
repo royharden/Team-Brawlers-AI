@@ -45,12 +45,19 @@ class OpenRouterConfig(BaseSettings):
 
     api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     base_url: str = Field(default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL")
+    # Sub-plan Next04: the AgDR-0013 default `cognitivecomputations/...:free`
+    # was de-listed from OpenRouter; live verify on 2026-05-15 returned 404.
+    # Defaulting to the largest currently-available `:free` SKU. Mainstream
+    # alignment means many Red Team prompts will be refused — refusals are
+    # logged as `refusal_observed` per AgDR-0001 and the deterministic
+    # mutators continue to drive the attack stream. AgDR-0022 records the
+    # rationale + the operator-pickable knobs.
     redteam_model: str = Field(
-        default="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        default="nvidia/nemotron-3-super-120b-a12b:free",
         alias="OPENROUTER_REDTEAM_MODEL",
     )
     redteam_fallback_model: str = Field(
-        default="cognitivecomputations/dolphin-mistral-24b-venice-edition",
+        default="google/gemma-4-31b-it:free",
         alias="OPENROUTER_REDTEAM_FALLBACK_MODEL",
     )
     http_referer: str = Field(default="", alias="OPENROUTER_HTTP_REFERER")

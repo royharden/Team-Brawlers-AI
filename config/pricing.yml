@@ -15,9 +15,20 @@ anthropic:
     output_per_million: 5.00
 
 openrouter:
-  # USD per 1M tokens. AgDR-0013 — primary Red Team backend.
-  # The :free tier is genuinely $0; the paid Venice variant pricing is a
-  # placeholder until verified against OpenRouter's published rates.
+  # USD per 1M tokens. AgDR-0013 originally pinned `cognitivecomputations/
+  # dolphin-mistral-24b-venice-edition[:free]`, but both SKUs were de-listed
+  # from OpenRouter as of 2026-05-15 (live verify returned 404). AgDR-0022
+  # moves the default to the largest currently-available `:free` model
+  # (nvidia/nemotron) with a Gemma fallback. Both are mainstream-aligned
+  # so will refuse many Red Team prompts; the platform falls back to
+  # deterministic mutators per AgDR-0001's refusal-handling design.
+  nvidia/nemotron-3-super-120b-a12b:free:
+    input_per_million: 0.00
+    output_per_million: 0.00
+  google/gemma-4-31b-it:free:
+    input_per_million: 0.00
+    output_per_million: 0.00
+  # Historical record — DO NOT use in new code; both 404 on the live API.
   cognitivecomputations/dolphin-mistral-24b-venice-edition:free:
     input_per_million: 0.00
     output_per_million: 0.00
