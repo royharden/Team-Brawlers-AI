@@ -17,8 +17,11 @@ the contract this catalog enforces.
 | `tests/integration/test_full_multi_agent_loop_live.py::test_full_multi_agent_loop_one_step` | `integration` | One orchestrator.step(batch_size=1) round-trip. |
 | `tests/integration/test_sidecar_direct_live.py::test_live_sidecar_round_trip_no_phi_leak` | `integration` | Fire one attack at the running sidecar; verify response wiring + PHI-free trace. |
 | `tests/unit/api/test_routes_approval.py::test_approval_queue_lists_jsonl` | `unit` | `/v1/approval/queue` reads `data/notifier_queue.jsonl` line-by-line. |
-| `tests/unit/api/test_routes_approval.py::test_approval_approve_returns_501` | `unit` | `POST /v1/approval/{vr_id}/approve` is a Phase-8 stub returning 501. |
-| `tests/unit/api/test_routes_approval.py::test_approval_reject_returns_501` | `unit` | `POST /v1/approval/{vr_id}/reject` is a Phase-8 stub returning 501. |
+| `tests/unit/api/test_routes_approval.py::test_approval_approve_stamps_review_block` | `unit` | `POST /v1/approval/{vr_id}/approve` adds a review block on the queue |
+| `tests/unit/api/test_routes_approval.py::test_approval_reject_stamps_review_block` | `unit` | `POST /v1/approval/{vr_id}/reject` writes status=rejected (sub-plan Next04). |
+| `tests/unit/api/test_routes_approval.py::test_approval_dismiss_stamps_review_block` | `unit` | `POST /v1/approval/{vr_id}/dismiss` writes status=dismissed (sub-plan Next04). |
+| `tests/unit/api/test_routes_approval.py::test_approval_overwrites_existing_review` | `unit` | A second approve overwrites a prior review block — useful for |
+| `tests/unit/api/test_routes_approval.py::test_approval_404_for_unknown_vr_id` | `unit` | A POST against a vr_id that's not in the queue returns 404 — protects |
 | `tests/unit/api/test_routes_cost.py::test_cost_today_aggregates_ledger` | `unit` | `/v1/cost/today` rolls cost_ledger up by `agent_role` and counts calls. |
 | `tests/unit/api/test_routes_cost.py::test_cost_projections_computed_from_pricing_yml_with_empty_ledger` | `unit` | `/v1/cost/projections` returns the four-scale projection with non-zero |
 | `tests/unit/api/test_routes_cost.py::test_cost_projections_reflects_recent_ledger_spend` | `unit` | Seeded `cost_ledger` rows flow into `actual_dev_spend_usd` on the projections |
@@ -230,6 +233,9 @@ the contract this catalog enforces.
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_doc_records_token_usage_on_success` | `unit` | `SonnetDocClient.last_usage` is populated after a successful call |
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_records_token_usage_on_success` | `unit` | `SonnetPlannerClient.last_usage` is populated after a successful call |
 | `tests/unit/llm/test_anthropic_clients.py::test_token_usage_cleared_on_sdk_exception` | `unit` | A failed SDK call clears `last_usage` so consumers can detect the |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_aggregates_tokens_across_rubrics` | `unit` | Successive `score_rubric` calls SUM into `last_aggregate_usage` so the |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_reset_aggregate_usage_zeros_running_total` | `unit` | `reset_aggregate_usage()` clears the aggregate without touching |
+| `tests/unit/llm/test_anthropic_clients.py::test_external_final_judge_calls_reset_aggregate_at_score_entry` | `unit` | `ExternalFinalJudge.score()` zeros the wrapper's aggregate at the |
 | `tests/unit/observability/test_dashboards.py::test_aggregate_run_costs_rolls_up_by_role` | `unit` | `aggregate_run_costs` returns total + n_calls + per-role Decimal sums (master plan §15). |
 | `tests/unit/observability/test_dashboards.py::test_coverage_pct_handles_sparse_matrix` | `unit` | `coverage_pct` denominator is always 72; sparse inputs treat missing cells as uncovered. |
 | `tests/unit/observability/test_dashboards.py::test_recent_fingerprints_orders_distinct_most_recent_first` | `unit` | `recent_fingerprints` returns distinct fingerprints ordered most-recent first (no duplicates from repeat snapshots). |
@@ -300,6 +306,7 @@ the contract this catalog enforces.
 | `tests/unit/orchestrator/test_persistence.py::test_persistence_idempotent_on_second_step` | `unit` | A second step() reuses the same Run row but creates new AttackJob/Trace. |
 | `tests/unit/orchestrator/test_persistence.py::test_cost_ledger_uses_real_tokens_when_wrapper_reports_them` | `unit` | If `usage_sources[role].last_usage` is set + a PricingTable is wired, |
 | `tests/unit/orchestrator/test_persistence.py::test_cost_ledger_falls_back_to_class_estimate_when_usage_missing` | `unit` | No usage_sources + no pricing → behave exactly as AgDR-0017 did: |
+| `tests/unit/orchestrator/test_persistence.py::test_cost_ledger_prefers_aggregate_usage_over_per_call` | `unit` | When a wrapper exposes BOTH `last_aggregate_usage` and `last_usage`, |
 | `tests/unit/orchestrator/test_persistence.py::test_end_run_total_cost_reflects_real_token_pricing` | `unit` | `end_run()` sums cost_ledger.cost_usd into Run.total_cost_usd; with |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_bytes_for_indirect_injection_seed` | `unit` | `DocumentSmuggleMutator.render_document` produces PDF bytes whose round-trip extract carries the seed's `injected_text` (master plan §14 Phase 5 task 2). |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_none_for_non_indirect_seed` | `unit` | A seed without an `indirect_injection` block yields `None` (no spurious PDF generation). |
@@ -426,6 +433,7 @@ the contract this catalog enforces.
 | `tests/unit/test_pricing.py::test_resolve_models_fireworks_substitution_logged` | `unit` | When REDTEAM_PROVIDER=fireworks but no Fireworks key/SDK, the resolver |
 | `tests/unit/ui/test_api_client.py::test_healthz_hits_correct_path` | `unit` | `AgentForgeClient.healthz()` GETs `/healthz`. |
 | `tests/unit/ui/test_api_client.py::test_dashboard_runs_reports_paths` | `unit` | UI client hits the correct paths for dashboard / runs / reports endpoints (respx-mocked). |
+| `tests/unit/ui/test_api_client.py::test_approval_post_methods_hit_correct_paths` | `unit` | `AgentForgeClient.approve / reject / dismiss` POST to |
 | `tests/unit/ui/test_api_client.py::test_lineage_recent_hits_correct_path` | `unit` | `AgentForgeClient.lineage_recent(limit)` GETs `/v1/lineage/recent?limit=N` |
 | `tests/unit/ui/test_api_client.py::test_recompute_judge_meta_hits_correct_path` | `unit` | `AgentForgeClient.recompute_judge_meta()` POSTs `/v1/judge/recompute?layer=...` |
 | `tests/unit/ui/test_api_client.py::test_get_coverage_cells_hits_correct_path` | `unit` | `AgentForgeClient.get_coverage_cells()` GETs `/v1/coverage/cells` and |
