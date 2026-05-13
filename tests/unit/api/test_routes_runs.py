@@ -14,6 +14,7 @@ from tests.unit.api.conftest import (
 
 @pytest.mark.unit
 def test_runs_list_pagination(client: TestClient, seeded_session) -> None:
+    """`/v1/runs?limit&offset` returns the requested slice + total."""
     for i in range(5):
         seed_run(seeded_session, run_id=f"run-{i}")
     seeded_session.commit()
@@ -28,9 +29,8 @@ def test_runs_list_pagination(client: TestClient, seeded_session) -> None:
 
 
 @pytest.mark.unit
-def test_run_detail_counts_attacks_and_verdicts(
-    client: TestClient, seeded_session
-) -> None:
+def test_run_detail_counts_attacks_and_verdicts(client: TestClient, seeded_session) -> None:
+    """`/v1/runs/{id}` joins through `attack_traces` to count verdicts."""
     seed_run(seeded_session, "run-x")
     seed_attack(
         seeded_session,
@@ -51,11 +51,13 @@ def test_run_detail_counts_attacks_and_verdicts(
 
 @pytest.mark.unit
 def test_run_detail_404(client: TestClient) -> None:
+    """Unknown run id returns 404 (no silent zero-row body)."""
     r = client.get("/v1/runs/nonexistent")
     assert r.status_code == 404
 
 
 @pytest.mark.unit
 def test_runs_start_returns_501_phase_8(client: TestClient) -> None:
+    """Mutating `POST /v1/runs/start` is a Phase-8 stub returning 501 (read-only surface in Phase 5)."""
     r = client.post("/v1/runs/start")
     assert r.status_code == 501

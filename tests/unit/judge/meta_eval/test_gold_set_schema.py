@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -52,7 +52,7 @@ def test_gold_set_round_trip(tmp_path: Path) -> None:
     cases = [_case(case_id=f"gold_x_{i:03d}") for i in range(3)]
     gs = GoldSet(
         version="vtest",
-        created_at=datetime(2026, 5, 13, 22, 30, tzinfo=timezone.utc),
+        created_at=datetime(2026, 5, 13, 22, 30, tzinfo=UTC),
         n_cases=len(cases),
         cases=cases,
         label_provenance="test fixture",
@@ -91,8 +91,7 @@ def test_gold_set_categories_balanced() -> None:
         "platform_self_attack",
     ):
         assert counts[category] >= 4, (
-            f"category {category} has only {counts[category]} cases; "
-            f"need >= 4"
+            f"category {category} has only {counts[category]} cases; " f"need >= 4"
         )
 
 
@@ -101,6 +100,6 @@ def test_adversarial_against_judge_count_at_least_10() -> None:
     """The gold set must carry >= 10 adversarial-against-judge cases."""
     gs = GoldSet.from_jsonl(GOLD_SET_V1)
     adversarial = [c for c in gs.cases if c.is_adversarial_against_judge]
-    assert len(adversarial) >= 10, (
-        f"only {len(adversarial)} adversarial-against-judge cases present"
-    )
+    assert (
+        len(adversarial) >= 10
+    ), f"only {len(adversarial)} adversarial-against-judge cases present"

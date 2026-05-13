@@ -28,6 +28,7 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 @pytest.mark.unit
 def test_pricing_table_loads_yaml() -> None:
+    """`PricingTable.from_yaml` parses fresh `config/pricing.yml` and registers known models (master plan §6)."""
     table = PricingTable.from_yaml(
         FIXTURES / "pricing_fresh.yml",
         today=date(2026, 5, 13),
@@ -39,6 +40,7 @@ def test_pricing_table_loads_yaml() -> None:
 
 @pytest.mark.unit
 def test_pricing_stale_raises() -> None:
+    """YAML older than 2x freshness window must raise `PricingStale` instead of silently using stale prices (master plan §15)."""
     with pytest.raises(PricingStale):
         PricingTable.from_yaml(
             FIXTURES / "pricing_old.yml",
@@ -61,6 +63,7 @@ def test_pricing_stale_warning_logged(caplog: pytest.LogCaptureFixture) -> None:
 
 @pytest.mark.unit
 def test_cost_for_call_decimal() -> None:
+    """Cost arithmetic returns `Decimal` with exact expected USD totals (master plan §6/§15 — no float drift)."""
     table = PricingTable.from_yaml(
         FIXTURES / "pricing_fresh.yml",
         today=date(2026, 5, 13),
@@ -96,6 +99,7 @@ def test_cost_for_call_no_float_drift() -> None:
 
 @pytest.mark.unit
 def test_unknown_model_raises() -> None:
+    """Unknown `(provider, model)` pair must raise `UnknownModel` (no silent $0 cost)."""
     table = PricingTable.from_yaml(
         FIXTURES / "pricing_fresh.yml",
         today=date(2026, 5, 13),
@@ -117,7 +121,7 @@ class _FakeModelsAPI:
     def __init__(self, ids: list[str]) -> None:
         self._ids = ids
 
-    def list(self) -> _FakeListing:  # noqa: A003 — mimic SDK shape
+    def list(self) -> _FakeListing:
         return _FakeListing(self._ids)
 
 
@@ -138,9 +142,7 @@ def test_resolve_models_anthropic_all_found(monkeypatch: pytest.MonkeyPatch) -> 
 
     get_settings.cache_clear()
     try:
-        fake = _FakeAnthropicClient(
-            ["claude-sonnet-4-6", "claude-haiku-4-6", "claude-haiku-4-5"]
-        )
+        fake = _FakeAnthropicClient(["claude-sonnet-4-6", "claude-haiku-4-6", "claude-haiku-4-5"])
         result = resolve_models(anthropic_client=fake)
         assert isinstance(result, ModelResolution)
         assert result.resolved["orchestrator"] == "claude-sonnet-4-6"
@@ -153,6 +155,7 @@ def test_resolve_models_anthropic_all_found(monkeypatch: pytest.MonkeyPatch) -> 
 @pytest.mark.unit
 def test_resolve_models_fast_falls_back_to_haiku_45() -> None:
     # Pretend haiku-4-6 is not yet GA in the account — should fall back to 4-5.
+    """When `haiku-4-6` is absent, `resolve_models` falls back to `haiku-4-5` and records a substitution (master plan §6)."""
     fake = _FakeAnthropicClient(["claude-sonnet-4-6", "claude-haiku-4-5"])
     result = resolve_models(anthropic_client=fake)
     assert result.resolved["fast"] == "claude-haiku-4-5"
@@ -172,9 +175,7 @@ def test_resolve_models_fireworks_substitution_logged(
     monkeypatch.setenv("REDTEAM_PROVIDER", "fireworks")
     monkeypatch.setenv("FIREWORKS_API_KEY", "")
 
-    fake = _FakeAnthropicClient(
-        ["claude-sonnet-4-6", "claude-haiku-4-6", "claude-haiku-4-5"]
-    )
+    fake = _FakeAnthropicClient(["claude-sonnet-4-6", "claude-haiku-4-6", "claude-haiku-4-5"])
     # No fireworks_models_list_fn → substitution path.
     result = pricing_mod.resolve_models(anthropic_client=fake)
     assert result.resolved["redteam"] == "claude-sonnet-4-6"

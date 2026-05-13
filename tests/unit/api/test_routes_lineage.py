@@ -37,6 +37,7 @@ def _build_lineage() -> AttackLineage:
 
 @pytest.mark.unit
 def test_lineage_tree(client: TestClient) -> None:
+    """`/v1/lineage/{attack_id}` returns the nested tree rooted at the requested attack."""
     set_lineage(_build_lineage())
     try:
         r = client.get("/v1/lineage/root-1")
@@ -51,6 +52,7 @@ def test_lineage_tree(client: TestClient) -> None:
 
 @pytest.mark.unit
 def test_lineage_404_for_unknown(client: TestClient) -> None:
+    """Unknown attack_id returns 404 (no silent empty tree)."""
     set_lineage(AttackLineage())  # empty
     r = client.get("/v1/lineage/no-such-attack")
     assert r.status_code == 404

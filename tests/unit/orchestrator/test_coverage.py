@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.orm import Session
@@ -40,6 +40,7 @@ def test_update_creates_cell(session_factory: Callable[[], Session]) -> None:
 
 @pytest.mark.unit
 def test_update_increments_pass(session_factory: Callable[[], Session]) -> None:
+    """Two passing outcomes for the same cell increment `passes` to 2 and yield `pass_rate=1.0`."""
     cm = CoverageMatrix(session_factory)
     cm.update("tool_misuse", "single_turn", outcome_passed=True)
     cell = cm.update("tool_misuse", "single_turn", outcome_passed=True)
@@ -51,6 +52,7 @@ def test_update_increments_pass(session_factory: Callable[[], Session]) -> None:
 
 @pytest.mark.unit
 def test_update_increments_fail(session_factory: Callable[[], Session]) -> None:
+    """One pass + one fail yields `passes=1`, `failures=1`, `pass_rate=0.5`."""
     cm = CoverageMatrix(session_factory)
     cm.update("data_exfiltration", "crescendo", outcome_passed=False)
     cell = cm.update("data_exfiltration", "crescendo", outcome_passed=True)
@@ -72,9 +74,7 @@ def test_snapshot_returns_all_72_cells(
     snap = cm.snapshot()
     assert len(snap) == 72
     keys = {(c.category, c.strategy) for c in snap}
-    assert keys == {
-        (cat, strat) for cat in CATEGORIES for strat in STRATEGIES
-    }
+    assert keys == {(cat, strat) for cat in CATEGORIES for strat in STRATEGIES}
     # Untouched cells have zero counts.
     zero_cells = [c for c in snap if c.attempts == 0]
     assert len(zero_cells) == 70
@@ -84,6 +84,7 @@ def test_snapshot_returns_all_72_cells(
 def test_uncovered_cells_filters_by_threshold(
     session_factory: Callable[[], Session],
 ) -> None:
+    """`uncovered_cells(threshold_attempts=N)` returns cells with `attempts <= N`, sorted (category, strategy)."""
     cm = CoverageMatrix(session_factory)
     cm.update("prompt_injection", "single_turn", outcome_passed=True)
     cm.update("prompt_injection", "single_turn", outcome_passed=True)
@@ -110,12 +111,12 @@ def test_degraded_cells_filter(session_factory: Callable[[], Session]) -> None:
     # All passes — not degraded.
     cm.update("identity_role", "single_turn", outcome_passed=True)
 
-    since = datetime.now(timezone.utc) - timedelta(minutes=1)
+    since = datetime.now(UTC) - timedelta(minutes=1)
     degraded = cm.degraded_cells(since)
     assert len(degraded) == 1
     assert degraded[0].category == "denial_of_service"
     assert degraded[0].strategy == "single_turn"
 
     # Looking forward in time → nothing degraded yet.
-    future = datetime.now(timezone.utc) + timedelta(minutes=1)
+    future = datetime.now(UTC) + timedelta(minutes=1)
     assert cm.degraded_cells(future) == []

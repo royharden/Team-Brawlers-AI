@@ -39,6 +39,7 @@ def _make_runner(
 def test_discover_cases_walks_dir(
     tmp_path: Path, make_regression_case, write_case_to_dir, fake_judge
 ) -> None:
+    """`RegressionRunner.discover_cases` loads every `VR-*.json` and ignores non-VR files."""
     regression_dir = tmp_path / "regression"
     results_dir = tmp_path / "results"
     write_case_to_dir(regression_dir, make_regression_case(vr_id="VR-0001"))
@@ -60,6 +61,7 @@ def test_discover_cases_walks_dir(
 def test_run_all_writes_results_jsonl(
     tmp_path: Path, make_regression_case, write_case_to_dir, fake_judge
 ) -> None:
+    """`run_all` writes `evals/results/regression_<timestamp>.jsonl` atomically with one header + N outcome lines."""
     regression_dir = tmp_path / "regression"
     results_dir = tmp_path / "results"
     write_case_to_dir(regression_dir, make_regression_case(vr_id="VR-0001"))
@@ -92,6 +94,7 @@ def test_run_all_writes_results_jsonl(
 def test_run_one_finds_case_by_vr_id(
     tmp_path: Path, make_regression_case, write_case_to_dir, fake_judge
 ) -> None:
+    """`tb regress --case VR-####` looks up the case by filename in `regression_dir`."""
     regression_dir = tmp_path / "regression"
     results_dir = tmp_path / "results"
     write_case_to_dir(regression_dir, make_regression_case(vr_id="VR-0007"))
@@ -109,6 +112,7 @@ def test_run_one_finds_case_by_vr_id(
 
 @pytest.mark.unit
 def test_run_one_raises_on_missing_case(tmp_path: Path, fake_judge) -> None:
+    """Missing vr_id raises `FileNotFoundError` with the expected path in the message."""
     runner = _make_runner(
         regression_dir=tmp_path / "regression",
         results_dir=tmp_path / "results",
@@ -143,9 +147,7 @@ def test_run_all_persists_last_run_outcome_via_repo(
 
     session = in_memory_session_factory()
     row = (
-        session.query(RegressionCaseRow)
-        .filter(RegressionCaseRow.vr_id == "VR-0001")
-        .one_or_none()
+        session.query(RegressionCaseRow).filter(RegressionCaseRow.vr_id == "VR-0001").one_or_none()
     )
     assert row is not None
     assert row.last_run_outcome == "fail"
@@ -157,6 +159,7 @@ def test_run_all_persists_last_run_outcome_via_repo(
 def test_results_jsonl_first_line_is_header(
     tmp_path: Path, make_regression_case, write_case_to_dir, fake_judge
 ) -> None:
+    """The JSONL file's first line is `{"header": ...ReplayBatch summary...}`; subsequent lines are `{"outcome": ...ReplayOutcome...}`."""
     regression_dir = tmp_path / "regression"
     results_dir = tmp_path / "results"
     write_case_to_dir(regression_dir, make_regression_case(vr_id="VR-0001"))

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,7 @@ def _batch(
     passed: list[str] | None = None,
     errored: list[str] | None = None,
 ) -> ReplayBatch:
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     failed = failed or []
     passed = passed or []
     errored = errored or []
@@ -36,6 +36,7 @@ def _batch(
 
 @pytest.mark.unit
 def test_floor_empty_batch_passes() -> None:
+    """An empty `ReplayBatch` never trips the floor (exit_code 0, no false-positive CI blocks)."""
     enforcer = FloorEnforcer(Floor())
     result = enforcer.evaluate(_batch())
     assert result.floor_exceeded is False
@@ -83,6 +84,7 @@ def test_unexpected_pass_listed_as_fix_candidate() -> None:
 
 @pytest.mark.unit
 def test_floor_exceeded_when_new_regressions_exceed_max() -> None:
+    """When `len(new_regressions) > max_new_regressions_per_run`, the floor is exceeded and exit_code is 1."""
     enforcer = FloorEnforcer(Floor(max_new_regressions_per_run=1))
     # No previous batch → all failing cases count as new (3 > 1).
     result = enforcer.evaluate(_batch(failed=["VR-0001", "VR-0002", "VR-0003"]))
@@ -93,6 +95,7 @@ def test_floor_exceeded_when_new_regressions_exceed_max() -> None:
 
 @pytest.mark.unit
 def test_exit_code_1_on_floor_violation() -> None:
+    """A single new regression with `max_new_regressions_per_run=0` produces exit_code 1 (CI hard gate)."""
     enforcer = FloorEnforcer(Floor(max_new_regressions_per_run=0))
     result = enforcer.evaluate(_batch(failed=["VR-0099"]))
     assert result.exit_code == 1
@@ -107,9 +110,7 @@ def test_floor_from_json(tmp_path: Path) -> None:
             {
                 "max_new_regressions_per_run": 2,
                 "known_failing_cases": ["VR-0050"],
-                "judge_floor": {
-                    "external_final": {"precision": 0.85, "recall": 0.80, "f1": 0.82}
-                },
+                "judge_floor": {"external_final": {"precision": 0.85, "recall": 0.80, "f1": 0.82}},
             }
         ),
         encoding="utf-8",

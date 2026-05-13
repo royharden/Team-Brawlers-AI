@@ -9,7 +9,6 @@ import pytest
 from agentforge.config import BudgetConfig
 from agentforge.orchestrator.budget_guard import BudgetGuard, HaltReason
 
-
 _ALIAS_BY_FIELD: dict[str, str] = {
     "smoke_usd": "BUDGET_SMOKE_USD",
     "seeded_usd": "BUDGET_SEEDED_USD",
@@ -45,6 +44,7 @@ def _cfg(**overrides: object) -> BudgetConfig:
 
 @pytest.mark.unit
 def test_smoke_ceiling_triggers_halt() -> None:
+    """Smoke-run spend > `BUDGET_SMOKE_USD` halts with `BUDGET_SMOKE_EXCEEDED` (master plan §8.1 + §14 Phase 4)."""
     guard = BudgetGuard(_cfg(smoke_usd=Decimal("0.50")), run_type="smoke")
     guard.tick_cost(Decimal("0.40"))
     assert guard.may_continue()
@@ -55,6 +55,7 @@ def test_smoke_ceiling_triggers_halt() -> None:
 
 @pytest.mark.unit
 def test_seeded_ceiling_triggers_halt() -> None:
+    """Seeded-run spend > `BUDGET_SEEDED_USD` halts with `BUDGET_SEEDED_EXCEEDED`."""
     guard = BudgetGuard(_cfg(seeded_usd=Decimal("2.00")), run_type="seeded")
     guard.tick_cost(Decimal("2.10"))
     assert not guard.may_continue()
@@ -63,6 +64,7 @@ def test_seeded_ceiling_triggers_halt() -> None:
 
 @pytest.mark.unit
 def test_exploratory_ceiling_triggers_halt() -> None:
+    """Exploratory-run spend > `BUDGET_EXPLORATORY_USD` halts with `BUDGET_EXPLORATORY_EXCEEDED`."""
     guard = BudgetGuard(_cfg(exploratory_usd=Decimal("1.00")), run_type="exploratory")
     guard.tick_cost(Decimal("1.50"))
     assert not guard.may_continue()
@@ -72,6 +74,7 @@ def test_exploratory_ceiling_triggers_halt() -> None:
 @pytest.mark.unit
 def test_day_ceiling_triggers_halt() -> None:
     # Generous run-type ceilings so only the per-day ceiling can fire.
+    """Cumulative day spend > `BUDGET_PER_DAY_USD` halts with `BUDGET_PER_DAY_EXCEEDED`."""
     cfg = _cfg(
         exploratory_usd=Decimal("1000.00"),
         per_day_usd=Decimal("2.00"),
@@ -86,6 +89,7 @@ def test_day_ceiling_triggers_halt() -> None:
 
 @pytest.mark.unit
 def test_cost_without_signal_triggers_halt() -> None:
+    """After N null attempts AND spend > `BUDGET_NULL_RUN_SPEND_THRESHOLD_USD`, halts with `COST_WITHOUT_SIGNAL` (PRD: halt or redirect when cost accumulates without producing signal)."""
     cfg = _cfg(
         halt_after_n_null_runs=3,
         null_run_spend_threshold_usd=Decimal("0.10"),
@@ -104,6 +108,7 @@ def test_cost_without_signal_triggers_halt() -> None:
 
 @pytest.mark.unit
 def test_per_attack_timeout_triggers_halt() -> None:
+    """A single attack with `latency_seconds > BUDGET_PER_ATTACK_TIMEOUT_S` halts with `PER_ATTACK_TIMEOUT`."""
     guard = BudgetGuard(_cfg(per_attack_timeout_s=30), run_type="exploratory")
     guard.tick_per_attack_latency(29.5)
     assert guard.may_continue()
@@ -115,6 +120,7 @@ def test_per_attack_timeout_triggers_halt() -> None:
 @pytest.mark.unit
 def test_target_error_rate_triggers_halt_above_threshold() -> None:
     # 30% error rate over 20 requests → above 0.20 threshold → halts.
+    """Rolling-window target error rate above `BUDGET_TARGET_ERROR_RATE_HALT` (with ≥20 requests) halts with `TARGET_ERROR_RATE_TOO_HIGH`."""
     guard = BudgetGuard(_cfg(target_error_rate_halt=0.20), run_type="exploratory")
     for i in range(20):
         guard.tick_target_error(was_error=(i < 6))  # 6/20 = 0.30 > 0.20
@@ -125,6 +131,7 @@ def test_target_error_rate_triggers_halt_above_threshold() -> None:
 @pytest.mark.unit
 def test_target_error_rate_does_not_halt_below_threshold() -> None:
     # 10% error rate over 20 requests → below 0.20 threshold → does not halt.
+    """Error rate below the threshold OR window size below 20 does NOT halt (no premature trip)."""
     guard = BudgetGuard(_cfg(target_error_rate_halt=0.20), run_type="exploratory")
     for i in range(20):
         guard.tick_target_error(was_error=(i < 2))  # 2/20 = 0.10
@@ -138,6 +145,7 @@ def test_target_error_rate_does_not_halt_below_threshold() -> None:
 
 @pytest.mark.unit
 def test_operator_halt_triggers_halt() -> None:
+    """`operator_halt()` sets `OPERATOR_HALT` and records the operator note."""
     guard = BudgetGuard(_cfg(), run_type="exploratory")
     guard.operator_halt("manual kill")
     assert not guard.may_continue()
@@ -163,6 +171,7 @@ def test_halt_is_sticky() -> None:
 
 @pytest.mark.unit
 def test_tick_finding_resets_counters() -> None:
+    """`tick_finding()` resets `attempts_since_last_finding` and `spend_since_last_finding_usd` so the COST_WITHOUT_SIGNAL window restarts."""
     cfg = _cfg(
         halt_after_n_null_runs=3,
         null_run_spend_threshold_usd=Decimal("0.10"),

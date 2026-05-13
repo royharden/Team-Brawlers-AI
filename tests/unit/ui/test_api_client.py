@@ -19,6 +19,7 @@ BASE_URL = "http://test.local"
 @pytest.mark.unit
 @respx.mock
 def test_healthz_hits_correct_path() -> None:
+    """`AgentForgeClient.healthz()` GETs `/healthz`."""
     route = respx.get(f"{BASE_URL}/healthz").mock(
         return_value=httpx.Response(200, json={"status": "ok"})
     )
@@ -30,6 +31,7 @@ def test_healthz_hits_correct_path() -> None:
 @pytest.mark.unit
 @respx.mock
 def test_dashboard_runs_reports_paths() -> None:
+    """UI client hits the correct paths for dashboard / runs / reports endpoints (respx-mocked)."""
     respx.get(f"{BASE_URL}/v1/dashboard").mock(
         return_value=httpx.Response(200, json={"totals": {"runs": 0}})
     )
@@ -39,9 +41,7 @@ def test_dashboard_runs_reports_paths() -> None:
     respx.get(f"{BASE_URL}/v1/runs/abc").mock(
         return_value=httpx.Response(200, json={"run": {"id": "abc"}})
     )
-    respx.get(f"{BASE_URL}/v1/reports").mock(
-        return_value=httpx.Response(200, json={"reports": []})
-    )
+    respx.get(f"{BASE_URL}/v1/reports").mock(return_value=httpx.Response(200, json={"reports": []}))
     respx.get(f"{BASE_URL}/v1/reports/VR-1").mock(
         return_value=httpx.Response(200, json={"vr_id": "VR-1"})
     )
@@ -61,6 +61,7 @@ def test_dashboard_runs_reports_paths() -> None:
 @pytest.mark.unit
 @respx.mock
 def test_cost_regression_lineage_delta_approval_paths() -> None:
+    """UI client hits the correct paths for cost / regression / lineage / delta / approval endpoints (respx-mocked)."""
     respx.get(f"{BASE_URL}/v1/cost/today").mock(
         return_value=httpx.Response(200, json={"spend_usd": "0"})
     )

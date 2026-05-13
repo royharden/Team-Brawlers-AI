@@ -36,9 +36,8 @@ def _file_imports(path: Path) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 names.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                names.add(node.module.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module.split(".")[0])
     return names
 
 
@@ -70,6 +69,4 @@ def test_sanctioned_module_actually_imports_its_sdk() -> None:
             path = REDTEAM_PKG_ROOT / filename
             assert path.exists(), f"sanctioned file missing: {path}"
             imports = _file_imports(path)
-            assert sdk in imports, (
-                f"{path.relative_to(REPO_ROOT)} should import {sdk!r}"
-            )
+            assert sdk in imports, f"{path.relative_to(REPO_ROOT)} should import {sdk!r}"

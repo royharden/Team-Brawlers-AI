@@ -22,6 +22,7 @@ def _attack(aid: str, parent: str | None = None, seed_id: str = "seed_x") -> Mut
 
 @pytest.mark.unit
 def test_record_then_query_parents_and_children() -> None:
+    """`AttackLineage.record` then `ancestors` / `descendants` returns expected single-level relationships."""
     lin = AttackLineage()
     lin.record(_attack("root"))
     lin.record(_attack("c1", parent="root"))
@@ -32,6 +33,7 @@ def test_record_then_query_parents_and_children() -> None:
 
 @pytest.mark.unit
 def test_ancestors_walk_back_to_root_inclusive_left() -> None:
+    """`AttackLineage.ancestors` walks root → leaf exclusive of the leaf."""
     lin = AttackLineage()
     lin.record(_attack("root"))
     lin.record(_attack("a", parent="root"))
@@ -43,6 +45,7 @@ def test_ancestors_walk_back_to_root_inclusive_left() -> None:
 
 @pytest.mark.unit
 def test_descendants_breadth_first_excludes_self() -> None:
+    """`AttackLineage.descendants` returns BFS order, excludes the root id."""
     lin = AttackLineage()
     lin.record(_attack("root"))
     lin.record(_attack("a", parent="root"))
@@ -54,6 +57,7 @@ def test_descendants_breadth_first_excludes_self() -> None:
 
 @pytest.mark.unit
 def test_tree_renders_nested_dict_for_ui() -> None:
+    """`AttackLineage.tree` renders a nested dict carrying `attack_id`, `seed_id`, `mutator_chain`."""
     lin = AttackLineage()
     lin.record(_attack("root"))
     lin.record(_attack("a", parent="root"))

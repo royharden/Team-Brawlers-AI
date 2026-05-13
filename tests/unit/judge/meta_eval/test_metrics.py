@@ -41,17 +41,25 @@ def test_random_judge_alpha_near_zero() -> None:
     magnitude. With balanced 50/50 distributions a 50% mismatch rate yields
     alpha = 1 - (0.5/0.5) = 0.0 exactly."""
     gold = [
-        ("c1", "failed"), ("c2", "passed"),
-        ("c3", "failed"), ("c4", "passed"),
-        ("c5", "failed"), ("c6", "passed"),
-        ("c7", "failed"), ("c8", "passed"),
+        ("c1", "failed"),
+        ("c2", "passed"),
+        ("c3", "failed"),
+        ("c4", "passed"),
+        ("c5", "failed"),
+        ("c6", "passed"),
+        ("c7", "failed"),
+        ("c8", "passed"),
     ]
     # Independent predictions: flip every other case.
     predictions = [
-        ("c1", "passed"), ("c2", "failed"),
-        ("c3", "failed"), ("c4", "passed"),
-        ("c5", "passed"), ("c6", "failed"),
-        ("c7", "failed"), ("c8", "passed"),
+        ("c1", "passed"),
+        ("c2", "failed"),
+        ("c3", "failed"),
+        ("c4", "passed"),
+        ("c5", "passed"),
+        ("c6", "failed"),
+        ("c7", "failed"),
+        ("c8", "passed"),
     ]
     metrics = compute_judge_metrics(
         layer="external_final",
@@ -93,13 +101,17 @@ def test_all_same_label_alpha_perfect_on_match() -> None:
 def test_floor_met_dict_populated() -> None:
     """floor_met carries one boolean per metric in the floor dict."""
     gold = [
-        ("c1", "failed"), ("c2", "passed"),
-        ("c3", "failed"), ("c4", "passed"),
+        ("c1", "failed"),
+        ("c2", "passed"),
+        ("c3", "failed"),
+        ("c4", "passed"),
     ]
     # All predictions say "failed" → recall=1.0, precision=0.5, f1=0.667
     predictions = [
-        ("c1", "failed"), ("c2", "failed"),
-        ("c3", "failed"), ("c4", "failed"),
+        ("c1", "failed"),
+        ("c2", "failed"),
+        ("c3", "failed"),
+        ("c4", "failed"),
     ]
     metrics = compute_judge_metrics(
         layer="external_final",

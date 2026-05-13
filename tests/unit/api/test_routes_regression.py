@@ -13,6 +13,7 @@ from tests.unit.api.conftest import seed_regression_case, seed_vuln_report
 
 @pytest.mark.unit
 def test_list_regression_cases(client: TestClient, seeded_session) -> None:
+    """`/v1/regression/cases` lists registered cases (vr_id + `what_bug_this_catches`)."""
     seed_vuln_report(seeded_session, vr_id="VR-RC-1")
     seed_regression_case(seeded_session, case_id="rc-a", vr_id="VR-RC-1")
     seeded_session.commit()
@@ -29,6 +30,7 @@ def test_list_regression_cases(client: TestClient, seeded_session) -> None:
 def test_latest_regression_results(
     client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`/v1/regression/results/latest` parses the most-recent `regression_*.jsonl`."""
     results_dir = tmp_path / "results"
     results_dir.mkdir()
     fpath = results_dir / "regression_20260101T000000Z.jsonl"

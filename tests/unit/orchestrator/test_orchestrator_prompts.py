@@ -39,7 +39,9 @@ class _CapturingClient:
         self.last_user = user
         return PlannerResponse(
             selections=[
-                CategoryStrategy(category="prompt_injection", strategy="single_turn", rationale="a"),
+                CategoryStrategy(
+                    category="prompt_injection", strategy="single_turn", rationale="a"
+                ),
                 CategoryStrategy(category="tool_misuse", strategy="crescendo", rationale="b"),
                 CategoryStrategy(category="data_exfiltration", strategy="role_play", rationale="c"),
             ]

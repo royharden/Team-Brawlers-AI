@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import sys
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -32,7 +32,6 @@ import cost_extrapolate as cx  # noqa: E402 — path bootstrap above
 from agentforge.memory.db import init_db, make_engine, make_session_factory  # noqa: E402
 from agentforge.memory.models import CostLedgerEntry, Run  # noqa: E402
 from agentforge.pricing import PricingTable  # noqa: E402
-
 
 PRICING_PATH = REPO_ROOT / "config" / "pricing.yml"
 
@@ -77,6 +76,7 @@ def test_dolphin_free_costs_zero(pricing: PricingTable) -> None:
 
 @pytest.mark.unit
 def test_per_run_cost_at_100_scale(pricing: PricingTable) -> None:
+    """Modelled per-run cost at the 100-run scale falls in a sensible band ($0.01–$0.50/run) and the Red Team contributes exactly $0."""
     overlay = next(o for o in cx.SCALE_OVERLAYS if o.n_runs == 100)
     projection = cx.build_scale_projection(pricing, cx.DEFAULT_ASSUMPTIONS, overlay)
     # Sensible band. The exact value floats with token assumptions but should
@@ -94,6 +94,7 @@ def test_per_run_cost_at_100_scale(pricing: PricingTable) -> None:
 
 @pytest.mark.unit
 def test_external_judge_dominates_cost_at_10k_scale(pricing: PricingTable) -> None:
+    """External Judge is the largest per-role cost line at the 10K-run scale (master plan §15)."""
     overlay = next(o for o in cx.SCALE_OVERLAYS if o.n_runs == 10000)
     projection = cx.build_scale_projection(pricing, cx.DEFAULT_ASSUMPTIONS, overlay)
     by_role = projection.by_role_usd
@@ -127,6 +128,7 @@ def test_batching_reduces_external_judge_share_at_100k(pricing: PricingTable) ->
 
 @pytest.mark.unit
 def test_infra_overlay_added_at_10k_and_100k() -> None:
+    """Fixed monthly infra cost is $0 at 100/1K, > $0 at 10K, and strictly higher at 100K — the architectural-change overlay grows with scale."""
     by_scale = {o.n_runs: o for o in cx.SCALE_OVERLAYS}
     assert by_scale[100].infra_monthly_usd == Decimal("0")
     assert by_scale[1000].infra_monthly_usd == Decimal("0")

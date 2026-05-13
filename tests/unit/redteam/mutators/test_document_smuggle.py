@@ -15,7 +15,6 @@ from agentforge.redteam.mutators.document_smuggle import (
     LabMetadataSmuggleMutator,
 )
 
-
 pytestmark = pytest.mark.unit
 
 
@@ -48,6 +47,7 @@ _NON_INDIRECT_SEED: dict = {
 
 
 def test_render_document_returns_bytes_for_indirect_injection_seed() -> None:
+    """`DocumentSmuggleMutator.render_document` produces PDF bytes whose round-trip extract carries the seed's `injected_text` (master plan §14 Phase 5 task 2)."""
     mutator = LabAfterResultsSmuggleMutator()
     pdf_bytes = mutator.render_document(_LAB_SEED)
     assert isinstance(pdf_bytes, bytes)
@@ -59,6 +59,7 @@ def test_render_document_returns_bytes_for_indirect_injection_seed() -> None:
 
 
 def test_render_document_returns_none_for_non_indirect_seed() -> None:
+    """A seed without an `indirect_injection` block yields `None` (no spurious PDF generation)."""
     mutator = LabAfterResultsSmuggleMutator()
     assert mutator.render_document(_NON_INDIRECT_SEED) is None
 
@@ -79,6 +80,7 @@ def test_three_placement_variants_distinct_mutator_ids() -> None:
 
 
 def test_applicable_to_indirect_injection_only() -> None:
+    """`applicable_to` returns True iff the seed declares an `indirect_injection` block."""
     mutator: DocumentSmuggleMutator = LabAfterResultsSmuggleMutator()
     assert mutator.applicable_to(_LAB_SEED) is True
     assert mutator.applicable_to(_NON_INDIRECT_SEED) is False

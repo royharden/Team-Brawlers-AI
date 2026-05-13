@@ -13,6 +13,7 @@ from agentforge.ui.components import (
 
 @pytest.mark.unit
 def test_coverage_heatmap_returns_8x9_grid() -> None:
+    """`coverage_heatmap` shapes a sparse snapshot into the canonical 8x9 grid; missing cells are None."""
     snapshot = [
         {
             "category": "prompt_injection",
@@ -37,6 +38,7 @@ def test_coverage_heatmap_returns_8x9_grid() -> None:
 
 @pytest.mark.unit
 def test_severity_badge_returns_color_tuples() -> None:
+    """`severity_badge` returns the (bg, fg) hex tuple for known severities and falls back to "unknown" otherwise."""
     high_bg, high_fg = severity_badge("high")
     assert high_bg.startswith("#")
     assert high_fg.startswith("#")

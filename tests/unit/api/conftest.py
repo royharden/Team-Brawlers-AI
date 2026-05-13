@@ -8,7 +8,7 @@ the platform's session-factory stays untouched.
 from __future__ import annotations
 
 from collections.abc import Generator, Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -96,7 +96,7 @@ def seeded_session(api_session_factory) -> Iterator[Session]:
 def seed_run(session: Session, run_id: str = "run-1", status: str = "running") -> Run:
     r = Run(
         id=run_id,
-        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        started_at=datetime.now(UTC).replace(tzinfo=None),
         run_type="exploratory",
         status=status,
         total_cost_usd=Decimal("0"),

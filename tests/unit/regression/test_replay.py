@@ -66,9 +66,7 @@ def test_run_case_error_on_adapter_exception(make_regression_case, fake_judge) -
 
 
 @pytest.mark.unit
-def test_target_response_text_treated_as_evidence(
-    make_regression_case, fake_judge
-) -> None:
+def test_target_response_text_treated_as_evidence(make_regression_case, fake_judge) -> None:
     """Response text with attempted-jailbreak markup must NOT crash the replay
     pipeline — it's just evidence the judge can evaluate."""
     case = make_regression_case()
@@ -99,9 +97,7 @@ def test_latency_ms_recorded(make_regression_case, fake_judge) -> None:
 
 
 @pytest.mark.unit
-def test_adapter_returns_response_with_error_field(
-    make_regression_case, fake_judge
-) -> None:
+def test_adapter_returns_response_with_error_field(make_regression_case, fake_judge) -> None:
     """If the adapter returns an :class:`AdapterResponse` carrying ``.error``
     (no raised exception), we still treat the case as errored — the target
     did not produce a scoreable response."""

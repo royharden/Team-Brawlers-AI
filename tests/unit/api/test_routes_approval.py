@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 def test_approval_queue_lists_jsonl(
     client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`/v1/approval/queue` reads `data/notifier_queue.jsonl` line-by-line."""
     qpath = tmp_path / "notifier_queue.jsonl"
     items = [
         {"vr_id": "VR-1", "kind": "budget_raise"},
@@ -34,11 +35,13 @@ def test_approval_queue_lists_jsonl(
 
 @pytest.mark.unit
 def test_approval_approve_returns_501(client: TestClient) -> None:
+    """`POST /v1/approval/{vr_id}/approve` is a Phase-8 stub returning 501."""
     r = client.post("/v1/approval/VR-1/approve")
     assert r.status_code == 501
 
 
 @pytest.mark.unit
 def test_approval_reject_returns_501(client: TestClient) -> None:
+    """`POST /v1/approval/{vr_id}/reject` is a Phase-8 stub returning 501."""
     r = client.post("/v1/approval/VR-1/reject")
     assert r.status_code == 501

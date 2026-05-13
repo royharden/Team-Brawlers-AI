@@ -27,11 +27,13 @@ def test_check_latency_fails_at_or_above_max() -> None:
 
 @pytest.mark.unit
 def test_check_token_count_passes_when_under_max() -> None:
+    """`check_token_count(4095)` returns True."""
     assert ct.check_token_count(4095) is True
 
 
 @pytest.mark.unit
 def test_check_token_count_fails_at_or_above_max() -> None:
+    """`check_token_count` returns False at exactly `MAX_TOKEN_COUNT` and above."""
     assert ct.check_token_count(ct.MAX_TOKEN_COUNT) is False
     assert ct.check_token_count(8192) is False
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -33,7 +33,6 @@ from agentforge.regression.case_schema import (
     RegressionCase,
     RegressionMetadata,
 )
-
 
 # ---------------------------------------------------------------- in-mem SQLite
 
@@ -56,7 +55,7 @@ def _default_metadata(**overrides: Any) -> RegressionMetadata:
         "target_fingerprint_at_discovery": "f" * 64,
         "replay_command": "tb regress --case VR-0001",
         "expected_outcome": "fail",
-        "emitted_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "emitted_at": datetime(2026, 1, 1, tzinfo=UTC),
     }
     base.update(overrides)
     return RegressionMetadata(**base)
@@ -176,9 +175,7 @@ class FakeExternalJudge:
             if label == "failed":
                 outcomes[rid] = RubricOutcome(passed=False, rationale="failed by fake")
             elif label == "abstained":
-                outcomes[rid] = RubricOutcome(
-                    passed=True, abstained=True, rationale="abstained"
-                )
+                outcomes[rid] = RubricOutcome(passed=True, abstained=True, rationale="abstained")
             else:
                 outcomes[rid] = RubricOutcome(passed=True, rationale="ok")
         failed = [rid for rid, oc in outcomes.items() if not oc.passed and not oc.abstained]
@@ -259,9 +256,7 @@ def write_raw_case_json() -> Callable[..., Path]:
     def _writer(directory: Path, case_dict: dict[str, Any]) -> Path:
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{case_dict['vr_id']}.json"
-        path.write_text(
-            json.dumps(case_dict, indent=2, default=str), encoding="utf-8"
-        )
+        path.write_text(json.dumps(case_dict, indent=2, default=str), encoding="utf-8")
         return path
 
     return _writer

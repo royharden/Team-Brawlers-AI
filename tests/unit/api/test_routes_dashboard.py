@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.unit.api.conftest import (
-    seed_coverage,
     seed_cost,
+    seed_coverage,
     seed_run,
     seed_vuln_report,
 )
@@ -15,6 +15,7 @@ from tests.unit.api.conftest import (
 
 @pytest.mark.unit
 def test_healthz_ok(client: TestClient) -> None:
+    """`/healthz` returns `{status:"ok", phase, tests_passing, version}` (master plan §4)."""
     r = client.get("/healthz")
     assert r.status_code == 200
     body = r.json()
@@ -26,6 +27,7 @@ def test_healthz_ok(client: TestClient) -> None:
 
 @pytest.mark.unit
 def test_dashboard_empty(client: TestClient) -> None:
+    """`/v1/dashboard` on an empty DB returns zeros + `total_cells=72` + `latest_run=None` (master plan §4 / §12)."""
     r = client.get("/v1/dashboard")
     assert r.status_code == 200
     body = r.json()
@@ -38,6 +40,7 @@ def test_dashboard_empty(client: TestClient) -> None:
 
 @pytest.mark.unit
 def test_dashboard_with_seeded_data(client: TestClient, seeded_session) -> None:
+    """`/v1/dashboard` aggregates seeded runs / VRs / cost / coverage rows."""
     seed_run(seeded_session, "run-a", status="done")
     seed_vuln_report(seeded_session, vr_id="VR-100", severity="high")
     seed_cost(seeded_session, role="red_team", amount="0.50")

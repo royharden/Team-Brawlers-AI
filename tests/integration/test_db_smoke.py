@@ -15,12 +15,11 @@ from sqlalchemy.engine import Engine
 
 from agentforge.memory.db import init_db, make_engine, make_session_factory
 from agentforge.memory.models import (
-    Run,
     RegressionCase,
+    Run,
     VulnerabilityClass,
     VulnReport,
 )
-
 
 EXPECTED_TABLES = {
     "runs",
@@ -61,10 +60,9 @@ def memory_engine() -> Engine:
 
 @pytest.mark.integration
 def test_init_db_creates_all_tables(memory_engine: Engine) -> None:
+    """`init_db()` creates every Phase-1 table (12 tables — master plan §5.2)."""
     with memory_engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table'")
-        ).all()
+        rows = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).all()
     found = {r[0] for r in rows}
     missing = EXPECTED_TABLES - found
     assert not missing, f"missing tables: {missing}; got {sorted(found)}"

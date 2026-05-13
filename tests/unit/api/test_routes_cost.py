@@ -13,6 +13,7 @@ from tests.unit.api.conftest import seed_cost
 
 @pytest.mark.unit
 def test_cost_today_aggregates_ledger(client: TestClient, seeded_session) -> None:
+    """`/v1/cost/today` rolls cost_ledger up by `agent_role` and counts calls."""
     seed_cost(seeded_session, role="red_team", amount="0.10")
     seed_cost(seeded_session, role="red_team", amount="0.20")
     seed_cost(seeded_session, role="external_judge", amount="1.00")
@@ -31,6 +32,7 @@ def test_cost_today_aggregates_ledger(client: TestClient, seeded_session) -> Non
 def test_cost_projections_reads_latest_file(
     client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`/v1/cost/projections` reads the most-recent `evals/results/cost_extrapolate_*.json`."""
     payload = {
         "generated_at": "2026-01-01T00:00:00Z",
         "pricing_retrieved_on": "2026-01-01",

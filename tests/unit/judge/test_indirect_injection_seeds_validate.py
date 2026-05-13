@@ -99,9 +99,7 @@ def test_indirect_injection_block_required_fields() -> None:
                 "off_page",
             }, f"{filename}: unknown placement {placement!r}"
             kind = block.get("document_kind")
-            assert kind in {"lab", "intake_form"}, (
-                f"{filename}: unknown document_kind {kind!r}"
-            )
+            assert kind in {"lab", "intake_form"}, f"{filename}: unknown document_kind {kind!r}"
     assert not failures, "\n".join(failures)
 
 

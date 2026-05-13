@@ -15,6 +15,7 @@ from agentforge.observability.scrubber import scrub_phi, scrub_phi_in_obj
 
 @pytest.mark.unit
 def test_scrub_ssn_positive() -> None:
+    """SSN `XXX-XX-XXXX` must be replaced with `[REDACTED-SSN]` before any payload leaves the platform."""
     out = scrub_phi("Patient SSN is 123-45-6789, please verify.")
     assert "123-45-6789" not in out
     assert "[REDACTED-SSN]" in out
@@ -23,6 +24,7 @@ def test_scrub_ssn_positive() -> None:
 @pytest.mark.unit
 def test_scrub_ssn_negative_not_a_match() -> None:
     # Plain non-SSN text untouched.
+    """Non-SSN strings must NOT be redacted (no false positives)."""
     text = "The room number is 12-345 and lab code A45."
     assert scrub_phi(text) == text
 
@@ -42,6 +44,7 @@ def test_scrub_ssn_negative_not_a_match() -> None:
     ],
 )
 def test_scrub_phone_positive(phone: str) -> None:
+    """US phone numbers in multiple formats must be redacted to `[REDACTED-PHONE]`."""
     out = scrub_phi(f"Call me at {phone} tomorrow.")
     assert phone not in out
     assert "[REDACTED-PHONE]" in out
@@ -49,6 +52,7 @@ def test_scrub_phone_positive(phone: str) -> None:
 
 @pytest.mark.unit
 def test_scrub_phone_negative_short_number() -> None:
+    """4-digit codes must NOT trigger the phone regex."""
     text = "Code is 4321."
     assert scrub_phi(text) == text
 
@@ -58,6 +62,7 @@ def test_scrub_phone_negative_short_number() -> None:
 
 @pytest.mark.unit
 def test_scrub_email_positive() -> None:
+    """Email addresses must be replaced with `[REDACTED-EMAIL]`."""
     out = scrub_phi("Contact: jane.doe+test@example.com for results.")
     assert "jane.doe+test@example.com" not in out
     assert "[REDACTED-EMAIL]" in out
@@ -65,6 +70,7 @@ def test_scrub_email_positive() -> None:
 
 @pytest.mark.unit
 def test_scrub_email_negative_not_email() -> None:
+    """`@here` / `#channel` references must NOT be redacted."""
     text = "Use the @here mention or #channel reference."
     assert scrub_phi(text) == text
 
@@ -74,6 +80,7 @@ def test_scrub_email_negative_not_email() -> None:
 
 @pytest.mark.unit
 def test_scrub_dob_iso_positive() -> None:
+    """ISO date DOB (`YYYY-MM-DD`) must be redacted."""
     out = scrub_phi("DOB: 1985-07-22.")
     assert "1985-07-22" not in out
     assert "[REDACTED-DOB]" in out
@@ -81,6 +88,7 @@ def test_scrub_dob_iso_positive() -> None:
 
 @pytest.mark.unit
 def test_scrub_dob_us_positive() -> None:
+    """US date DOB (`MM/DD/YYYY`) must be redacted."""
     out = scrub_phi("Born 07/22/1985.")
     assert "07/22/1985" not in out
     assert "[REDACTED-DOB]" in out
@@ -89,6 +97,7 @@ def test_scrub_dob_us_positive() -> None:
 @pytest.mark.unit
 def test_scrub_dob_negative_invalid_date() -> None:
     # Month 13 is not a valid DOB shape and should NOT be redacted as DOB.
+    """Invalid date shapes (e.g. `13/45/2024`) must NOT be redacted as DOB."""
     text = "Invoice 13/45/2024 ref."
     out = scrub_phi(text)
     assert "[REDACTED-DOB]" not in out
@@ -103,6 +112,7 @@ def test_scrub_dob_negative_invalid_date() -> None:
     ["MRN-123456", "MRN: 87654", "mrn-44455", "MR123456"],
 )
 def test_scrub_mrn_positive(mrn: str) -> None:
+    """`MRN-####+`, `MRN: ####`, and `MR####+` patterns must be redacted to `[REDACTED-MRN]`."""
     out = scrub_phi(f"Lookup {mrn} in chart.")
     assert mrn not in out
     assert "[REDACTED-MRN]" in out
@@ -110,6 +120,7 @@ def test_scrub_mrn_positive(mrn: str) -> None:
 
 @pytest.mark.unit
 def test_scrub_mrn_negative_not_mrn() -> None:
+    """ "Mr." prose must NOT match the MRN regex."""
     text = "Mr. Smith arrived at the front desk."
     assert scrub_phi(text) == text
 
@@ -128,6 +139,7 @@ def test_scrub_mrn_negative_not_mrn() -> None:
     ],
 )
 def test_scrub_cc_positive(cc: str) -> None:
+    """Credit-card-shaped digit groups (13–19 digits, spaces/dashes) must be redacted to `[REDACTED-CC]`."""
     out = scrub_phi(f"Card: {cc} expires soon.")
     assert cc not in out
     assert "[REDACTED-CC]" in out
@@ -135,6 +147,7 @@ def test_scrub_cc_positive(cc: str) -> None:
 
 @pytest.mark.unit
 def test_scrub_cc_negative_short_runs() -> None:
+    """Short digit runs must NOT be flagged as credit cards."""
     text = "Ref 12345 group A."
     out = scrub_phi(text)
     assert "[REDACTED-CC]" not in out
@@ -145,6 +158,7 @@ def test_scrub_cc_negative_short_runs() -> None:
 
 @pytest.mark.unit
 def test_scrub_long_digits_preserves_last4() -> None:
+    """Generic 9–11 digit runs preserve last 4 (`****-1234`)."""
     out = scrub_phi("Account 123456789")  # 9-digit number
     assert "123456789" not in out
     assert "****-6789" in out
@@ -152,6 +166,7 @@ def test_scrub_long_digits_preserves_last4() -> None:
 
 @pytest.mark.unit
 def test_scrub_long_digits_negative_short() -> None:
+    """4-digit references must NOT be redacted by the long-digits pass."""
     text = "Bay 1234."
     assert scrub_phi(text) == text
 
@@ -161,6 +176,7 @@ def test_scrub_long_digits_negative_short() -> None:
 
 @pytest.mark.unit
 def test_scrub_in_dict_nested() -> None:
+    """`scrub_phi_in_obj` recurses dicts + lists; non-string values (int, bool) unchanged."""
     obj = {
         "patient": {
             "ssn": "123-45-6789",
@@ -185,6 +201,7 @@ def test_scrub_in_dict_nested() -> None:
 
 @pytest.mark.unit
 def test_scrub_in_list_of_strings() -> None:
+    """`scrub_phi_in_obj` scrubs each string in a list."""
     obj = ["SSN 123-45-6789", "email a@b.com", "no PHI here"]
     out = scrub_phi_in_obj(obj)
     assert "[REDACTED-SSN]" in out[0]
@@ -194,6 +211,7 @@ def test_scrub_in_list_of_strings() -> None:
 
 @pytest.mark.unit
 def test_scrub_in_obj_passes_through_non_containers() -> None:
+    """Non-container, non-string inputs (int, float, None, bool, bytes) returned unchanged."""
     assert scrub_phi_in_obj(42) == 42
     assert scrub_phi_in_obj(3.14) == 3.14
     assert scrub_phi_in_obj(None) is None
@@ -203,4 +221,5 @@ def test_scrub_in_obj_passes_through_non_containers() -> None:
 
 @pytest.mark.unit
 def test_scrub_empty_string_unchanged() -> None:
+    """Empty-string input returns empty string (no crash)."""
     assert scrub_phi("") == ""

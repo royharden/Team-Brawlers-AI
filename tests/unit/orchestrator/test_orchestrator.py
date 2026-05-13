@@ -23,7 +23,6 @@ from agentforge.orchestrator.orchestrator import (
     PlannerResponse,
 )
 
-
 # ----------------------------------------------------------------- test fakes
 
 
@@ -104,9 +103,7 @@ class FakeExternalJudge:
         self.calls.append((attack, response, expected_safe_behavior))
         if self.all_pass:
             outcomes = {
-                "fake_rubric": RubricOutcome(
-                    passed=True, confidence=1.0, rationale="clean"
-                )
+                "fake_rubric": RubricOutcome(passed=True, confidence=1.0, rationale="clean")
             }
             return ExternalVerdict(
                 outcomes=outcomes,
@@ -116,11 +113,7 @@ class FakeExternalJudge:
                 safety_score_0_100=100,
                 failed_rubrics=[],
             )
-        outcomes = {
-            "fake_rubric": RubricOutcome(
-                passed=False, confidence=1.0, rationale="failed"
-            )
-        }
+        outcomes = {"fake_rubric": RubricOutcome(passed=False, confidence=1.0, rationale="failed")}
         return ExternalVerdict(
             outcomes=outcomes,
             summary="failed",
@@ -205,6 +198,7 @@ def _build(
 def test_plan_next_batch_uses_fake_planner_client(
     session_factory: Callable[[], Session],
 ) -> None:
+    """When an `OrchestratorAnthropicClient` is injected, `plan_next_batch` delegates to it and returns its `PlannerResponse.selections`."""
     planner = FakePlanner(
         [
             CategoryStrategy(category="prompt_injection", strategy="single_turn", rationale="a"),
@@ -228,6 +222,7 @@ def test_plan_next_batch_deterministic_fallback(
     assert len(selections) == 5
     # Every selection must be in the canonical category × strategy product.
     from agentforge.orchestrator.coverage import CATEGORIES, STRATEGIES
+
     valid = {(c, s) for c in CATEGORIES for s in STRATEGIES}
     for sel in selections:
         assert (sel.category, sel.strategy) in valid
@@ -238,9 +233,8 @@ def test_plan_next_batch_deterministic_fallback(
 def test_step_calls_all_five_roles_in_order(
     session_factory: Callable[[], Session],
 ) -> None:
-    planner = FakePlanner(
-        [CategoryStrategy(category="prompt_injection", strategy="single_turn")]
-    )
+    """`step()` invokes Red Team → Target Adapter → Internal Judge → External Judge → Coverage in the master-plan §8.1 sequence."""
+    planner = FakePlanner([CategoryStrategy(category="prompt_injection", strategy="single_turn")])
     orch, bag = _build(session_factory, planner=planner)
     result = orch.step(batch_size=1)
     assert result.attacks_executed == 1
@@ -260,9 +254,8 @@ def test_step_calls_all_five_roles_in_order(
 def test_step_persists_coverage(
     session_factory: Callable[[], Session],
 ) -> None:
-    planner = FakePlanner(
-        [CategoryStrategy(category="prompt_injection", strategy="single_turn")]
-    )
+    """After one passing step, the coverage matrix row for `(category, strategy)` shows `attempts=1`, `passes=1` (persisted to `coverage_cells`)."""
+    planner = FakePlanner([CategoryStrategy(category="prompt_injection", strategy="single_turn")])
     orch, bag = _build(session_factory, planner=planner)
     orch.step(batch_size=1)
     cov: CoverageMatrix = bag["coverage"]
@@ -313,9 +306,8 @@ def test_step_skips_remaining_jobs_when_budget_halts_mid_batch(
 def test_target_adapter_exception_becomes_error_response(
     session_factory: Callable[[], Session],
 ) -> None:
-    planner = FakePlanner(
-        [CategoryStrategy(category="prompt_injection", strategy="single_turn")]
-    )
+    """A raised exception from `target_adapter.execute` is translated to a synthetic `AdapterResponse(error="target_adapter_exception: ...")` instead of aborting the run."""
+    planner = FakePlanner([CategoryStrategy(category="prompt_injection", strategy="single_turn")])
     target = FakeTargetAdapter(raise_for_strategy="single_turn")
     orch, bag = _build(session_factory, planner=planner, target_adapter=target)
     result = orch.step(batch_size=1)
@@ -333,9 +325,8 @@ def test_target_adapter_exception_becomes_error_response(
 def test_failed_external_verdict_triggers_doc_write_report(
     session_factory: Callable[[], Session],
 ) -> None:
-    planner = FakePlanner(
-        [CategoryStrategy(category="prompt_injection", strategy="single_turn")]
-    )
+    """A failing External Final verdict calls `DocumentationAgent.write_report` exactly once and flips the cell to `failures=1`."""
+    planner = FakePlanner([CategoryStrategy(category="prompt_injection", strategy="single_turn")])
     external = FakeExternalJudge(all_pass=False)
     orch, bag = _build(session_factory, planner=planner, external=external)
     result = orch.step(batch_size=1)
@@ -353,9 +344,8 @@ def test_failed_external_verdict_triggers_doc_write_report(
 def test_passed_external_verdict_does_not_call_doc_agent(
     session_factory: Callable[[], Session],
 ) -> None:
-    planner = FakePlanner(
-        [CategoryStrategy(category="prompt_injection", strategy="single_turn")]
-    )
+    """A passing External Final verdict NEVER calls `DocumentationAgent.write_report` (no spurious VR-#### writes)."""
+    planner = FakePlanner([CategoryStrategy(category="prompt_injection", strategy="single_turn")])
     orch, bag = _build(session_factory, planner=planner)
     orch.step(batch_size=1)
     doc: FakeDocAgent = bag["doc"]

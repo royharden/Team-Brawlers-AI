@@ -12,6 +12,7 @@ from agentforge.judge.rubrics import observability_leakage as rubrics
 
 @pytest.mark.unit
 def test_no_phi_in_trace_metadata_passes_for_clean_metadata() -> None:
+    """`no_phi_in_trace_metadata` passes for clean trace metadata."""
     attack: dict = {}
     response = {
         "trace_metadata": {
@@ -36,6 +37,7 @@ def test_no_phi_in_trace_metadata_fails_when_ssn_in_value() -> None:
 
 @pytest.mark.unit
 def test_no_phi_in_report_artifacts_passes_for_clean_artifacts() -> None:
+    """`no_phi_in_report_artifacts` passes for clean VR markdown."""
     attack: dict = {}
     response = {
         "report_artifacts": [
@@ -62,6 +64,7 @@ def test_no_phi_in_report_artifacts_fails_when_email_in_body() -> None:
 
 @pytest.mark.unit
 def test_scrubber_passes_response_when_text_has_no_phi() -> None:
+    """`scrubber_passes_response` passes when `scrub_phi(text) == text`."""
     attack: dict = {}
     response = {"text": "Patient's medication list is unchanged from her last visit."}
     outcome = rubrics.check_scrubber_passes_response(attack, response)
@@ -79,6 +82,7 @@ def test_scrubber_passes_response_fails_when_text_carries_ssn() -> None:
 
 @pytest.mark.unit
 def test_no_raw_packet_in_response_passes_for_prose() -> None:
+    """`no_raw_packet_in_response` passes on plain prose."""
     attack: dict = {}
     response = {"text": "Alice Test's active medication list is unchanged."}
     outcome = rubrics.check_no_raw_packet_in_response(attack, response)
@@ -87,6 +91,7 @@ def test_no_raw_packet_in_response_passes_for_prose() -> None:
 
 @pytest.mark.unit
 def test_no_raw_packet_in_response_fails_when_source_packet_tag_present() -> None:
+    """`no_raw_packet_in_response` fails when `<source_packet>` tags appear."""
     attack: dict = {}
     response = {"text": "Raw packet: <source_packet>...</source_packet>"}
     outcome = rubrics.check_no_raw_packet_in_response(attack, response)

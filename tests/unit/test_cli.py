@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -14,7 +14,6 @@ from typer.testing import CliRunner
 from agentforge import cli as cli_module
 from agentforge.cli import app
 from agentforge.regression.case_schema import RegressionCase, RegressionMetadata
-
 
 # ---------------------------------------------------------------- local helpers
 
@@ -36,7 +35,7 @@ def _make_case(**overrides: Any) -> RegressionCase:
             target_fingerprint_at_discovery="f" * 64,
             replay_command=f"tb regress --case {vr_id}",
             expected_outcome="fail",
-            emitted_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            emitted_at=datetime(2026, 1, 1, tzinfo=UTC),
         ),
     }
     kwargs.update(overrides)
@@ -89,9 +88,7 @@ def patch_default_dirs(
     results_dir = tmp_path / "results"
     monkeypatch.setattr(cli_module, "_default_regression_dir", lambda: regression_dir)
     monkeypatch.setattr(cli_module, "_default_results_dir", lambda: results_dir)
-    monkeypatch.setattr(
-        cli_module, "_default_floor_path", lambda: tmp_path / "floor.json"
-    )
+    monkeypatch.setattr(cli_module, "_default_floor_path", lambda: tmp_path / "floor.json")
     (tmp_path / "floor.json").write_text(
         json.dumps(
             {
@@ -199,9 +196,7 @@ def test_report_prints_markdown_to_stdout(
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
     md_path = reports_dir / "VR-0001-persona-override.md"
-    md_path.write_text(
-        "# VR-0001\n\nPersona override exploit details.", encoding="utf-8"
-    )
+    md_path.write_text("# VR-0001\n\nPersona override exploit details.", encoding="utf-8")
     monkeypatch.setattr(cli_module, "_default_reports_dir", lambda: reports_dir)
 
     result = runner.invoke(app, ["report", "--vr", "VR-0001"])

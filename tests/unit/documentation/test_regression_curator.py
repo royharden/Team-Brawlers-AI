@@ -37,6 +37,7 @@ def _make_seed() -> dict:
 
 @pytest.mark.unit
 def test_emit_refuses_empty_what_bug_this_catches(tmp_path: Path) -> None:
+    """`RegressionCurator.emit_case` refuses (`ValueError`) on whitespace-only `what_bug_this_catches` (master plan §13 testing-discipline contract)."""
     curator = RegressionCurator(tmp_path)
     with pytest.raises(ValueError, match="what_bug_this_catches is empty"):
         curator.emit_case(
@@ -52,6 +53,7 @@ def test_emit_refuses_empty_what_bug_this_catches(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_emit_writes_json_file_under_evals_regression(tmp_path: Path) -> None:
+    """`emit_case` writes `<regression_dir>/VR-####.json` atomically."""
     curator = RegressionCurator(tmp_path)
     path = curator.emit_case(
         vr_id="VR-0042",
@@ -95,6 +97,7 @@ def test_emitted_json_validates_against_case_schema(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_replay_command_shape(tmp_path: Path) -> None:
+    """Emitted case carries `replay_command="tb regress --case VR-####"` and `expected_outcome="fail"`."""
     curator = RegressionCurator(tmp_path)
     path = curator.emit_case(
         vr_id="VR-0007",

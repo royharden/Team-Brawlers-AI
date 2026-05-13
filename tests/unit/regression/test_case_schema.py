@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -42,7 +41,7 @@ def test_replay_outcome_pydantic_round_trip() -> None:
     oc = ReplayOutcome(
         vr_id="VR-0042",
         case_id="prompt_injection_persona_override",
-        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 1, tzinfo=UTC),
         target_fingerprint="abc" * 21 + "x",  # 64 chars
         observed_outcome="fail",
         expected_outcome="fail",
@@ -62,7 +61,7 @@ def test_replay_outcome_pydantic_round_trip() -> None:
 @pytest.mark.unit
 def test_replay_batch_aggregates_lists_correctly() -> None:
     """:class:`ReplayBatch` keeps every category list separately."""
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     batch = ReplayBatch(
         started_at=now,
         ended_at=now,

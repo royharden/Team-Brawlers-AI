@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,6 @@ from agentforge.documentation.tagger import Tagger
 from agentforge.documentation.vulnerability_class import VulnerabilityClassIndex
 from agentforge.memory.repo import MemoryRepo
 from agentforge.memory.schemas import AdapterResponse, MutatedAttack
-
 
 # --- Fakes --------------------------------------------------------------------
 
@@ -174,9 +173,7 @@ def test_layer_enforcement_refuses_internal_verdict(
 
 
 @pytest.mark.unit
-def test_vr_counter_monotonic(
-    tmp_path: Path, session_factory: sessionmaker[Session]
-) -> None:
+def test_vr_counter_monotonic(tmp_path: Path, session_factory: sessionmaker[Session]) -> None:
     """Three consecutive write_report calls produce VR-0001, VR-0002, VR-0003."""
     agent, _, _ = _build_agent(tmp_path, session_factory, FakeDocClient())
     ids: list[str] = []
@@ -264,9 +261,7 @@ def test_severity_high_triggers_approval_gate(
 ) -> None:
     """Severity ≥ High → status=awaiting_approval and notifier queue gets a line."""
     notifier = tmp_path / "data" / "notifier_queue.jsonl"
-    agent, _, _ = _build_agent(
-        tmp_path, session_factory, FakeDocClient(), notifier_path=notifier
-    )
+    agent, _, _ = _build_agent(tmp_path, session_factory, FakeDocClient(), notifier_path=notifier)
     report = agent.write_report(
         attack=_build_attack(),
         request={"endpoint": "brief"},
@@ -288,6 +283,7 @@ def test_severity_high_triggers_approval_gate(
 def test_regression_case_emitted_under_evals_regression(
     tmp_path: Path, session_factory: sessionmaker[Session]
 ) -> None:
+    """Every confirmed exploit emits `evals/regression/VR-####.json` with `expected_outcome="fail"` (master plan §13 bug-to-regression rule)."""
     agent, _, regression_dir = _build_agent(tmp_path, session_factory, FakeDocClient())
     report = agent.write_report(
         attack=_build_attack(),
@@ -310,6 +306,7 @@ def test_regression_case_emitted_under_evals_regression(
 def test_both_markdown_and_html_written_under_reports(
     tmp_path: Path, session_factory: sessionmaker[Session]
 ) -> None:
+    """Both markdown and HTML report files are written under `reports/`; HTML carries `<section>` markers per template."""
     agent, reports_dir, _ = _build_agent(tmp_path, session_factory, FakeDocClient())
     report = agent.write_report(
         attack=_build_attack(),
@@ -329,4 +326,4 @@ def test_both_markdown_and_html_written_under_reports(
     assert report.vr_id in md
     assert report.vr_id in html
     # HTML autoescape should produce semantic <section> markers.
-    assert "<section id=\"clinical-impact\">" in html
+    assert '<section id="clinical-impact">' in html

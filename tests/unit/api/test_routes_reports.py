@@ -10,6 +10,7 @@ from tests.unit.api.conftest import seed_vuln_report
 
 @pytest.mark.unit
 def test_reports_list_filter_by_severity(client: TestClient, seeded_session) -> None:
+    """`/v1/reports?severity=high` filters the response set."""
     seed_vuln_report(seeded_session, vr_id="VR-001", severity="high")
     seed_vuln_report(seeded_session, vr_id="VR-002", severity="low")
     seed_vuln_report(seeded_session, vr_id="VR-003", severity="high")
@@ -24,6 +25,7 @@ def test_reports_list_filter_by_severity(client: TestClient, seeded_session) -> 
 
 @pytest.mark.unit
 def test_report_detail_by_vr_id(client: TestClient, seeded_session) -> None:
+    """`/v1/reports/{vr_id}` returns the VR + its markdown body."""
     seed_vuln_report(
         seeded_session,
         vr_id="VR-EXFIL-9",
@@ -40,6 +42,7 @@ def test_report_detail_by_vr_id(client: TestClient, seeded_session) -> None:
 
 @pytest.mark.unit
 def test_report_markdown_endpoint(client: TestClient, seeded_session) -> None:
+    """`/v1/reports/{vr_id}.md` returns raw markdown with text/plain content-type (route registered before `{vr_id}`)."""
     seed_vuln_report(
         seeded_session,
         vr_id="VR-MD-1",
@@ -55,5 +58,6 @@ def test_report_markdown_endpoint(client: TestClient, seeded_session) -> None:
 
 @pytest.mark.unit
 def test_report_detail_404(client: TestClient) -> None:
+    """Unknown vr_id returns 404."""
     r = client.get("/v1/reports/does-not-exist")
     assert r.status_code == 404

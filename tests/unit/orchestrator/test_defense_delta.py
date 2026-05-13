@@ -17,6 +17,7 @@ from agentforge.orchestrator.defense_delta import DefenseDelta
 def test_snapshot_persists_to_db(
     session_factory: Callable[[], Session],
 ) -> None:
+    """`DefenseDelta.snapshot(fingerprint)` writes a `defense_delta_snapshots` row with the per-cell pass rates JSON-encoded and an aggregate pass-rate (master plan §4 + §12)."""
     coverage = CoverageMatrix(session_factory)
     coverage.update("prompt_injection", "single_turn", outcome_passed=True)
     coverage.update("prompt_injection", "single_turn", outcome_passed=False)
@@ -43,6 +44,7 @@ def test_snapshot_persists_to_db(
 def test_trend_returns_most_recent_first(
     session_factory: Callable[[], Session],
 ) -> None:
+    """`DefenseDelta.trend(last_n=N)` returns the N most-recent snapshots in descending `snapshot_at` order — drives the dashboard line graph."""
     coverage = CoverageMatrix(session_factory)
     coverage.update("prompt_injection", "single_turn", outcome_passed=True)
     dd = DefenseDelta(session_factory, coverage)
@@ -60,6 +62,7 @@ def test_trend_returns_most_recent_first(
 def test_delta_computes_b_minus_a(
     session_factory: Callable[[], Session],
 ) -> None:
+    """`DefenseDelta.delta(fp_a, fp_b)` returns per-cell `(pass_rate_b - pass_rate_a)` — used by Phase-6 fix validation."""
     coverage = CoverageMatrix(session_factory)
     # Initial state: 1 fail in PI:single_turn → 0% pass rate.
     coverage.update("prompt_injection", "single_turn", outcome_passed=False)
@@ -78,6 +81,7 @@ def test_delta_computes_b_minus_a(
 def test_empty_coverage_yields_zero_aggregate(
     session_factory: Callable[[], Session],
 ) -> None:
+    """Snapshotting with no coverage data returns `aggregate_pass_rate=0.0` and `by_cell={}` (no crash, no NaN)."""
     coverage = CoverageMatrix(session_factory)
     dd = DefenseDelta(session_factory, coverage)
     snap = dd.snapshot("fp_empty")

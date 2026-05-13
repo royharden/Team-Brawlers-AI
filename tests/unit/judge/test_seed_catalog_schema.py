@@ -51,9 +51,7 @@ def test_every_individual_seed_file_validates() -> None:
             doc = yaml.safe_load(f)
         errs = list(validator.iter_errors(doc))
         if errs:
-            details = "; ".join(
-                f"{list(e.absolute_path) or '<root>'}: {e.message}" for e in errs
-            )
+            details = "; ".join(f"{list(e.absolute_path) or '<root>'}: {e.message}" for e in errs)
             failures.append(f"{path.relative_to(REPO_ROOT)}: {details}")
 
     assert not failures, "Seed schema violations:\n" + "\n".join(failures)
@@ -81,7 +79,11 @@ def test_every_catalog_entry_validates() -> None:
                 details = "; ".join(
                     f"{list(e.absolute_path) or '<root>'}: {e.message}" for e in errs
                 )
-                seed_id = seed.get("id", f"<index {index}>") if isinstance(seed, dict) else f"<index {index}>"
+                seed_id = (
+                    seed.get("id", f"<index {index}>")
+                    if isinstance(seed, dict)
+                    else f"<index {index}>"
+                )
                 failures.append(f"{path.relative_to(REPO_ROOT)}[{seed_id}]: {details}")
 
     assert not failures, "Catalog schema violations:\n" + "\n".join(failures)

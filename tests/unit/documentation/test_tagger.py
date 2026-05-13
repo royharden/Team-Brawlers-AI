@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agentforge.documentation.tagger import TagSet, Tagger
+from agentforge.documentation.tagger import Tagger, TagSet
 
 
 @pytest.mark.unit
@@ -36,5 +36,5 @@ def test_unknown_category_returns_default_nist_only() -> None:
 def test_lookup_json_parses_at_init() -> None:
     """`Tagger()` loads the JSON immediately and exposes the inner dict."""
     t = Tagger()
-    assert "owasp_llm_top_10_2025" in t._lookup  # noqa: SLF001 — internal inspection
+    assert "owasp_llm_top_10_2025" in t._lookup
     assert "prompt_injection" in t._lookup["owasp_llm_top_10_2025"]

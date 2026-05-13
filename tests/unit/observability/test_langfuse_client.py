@@ -71,6 +71,7 @@ def empty_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.unit
 def test_disabled_when_env_missing(empty_env: None) -> None:
+    """LangfuseClient operates in LANGFUSE_DISABLED no-op mode when env keys are absent (master plan §12)."""
     client = LangfuseClient()
     assert client.enabled is False
     # No-ops must not raise even with rich payloads.
@@ -84,6 +85,7 @@ def test_disabled_when_env_missing(empty_env: None) -> None:
 
 @pytest.mark.unit
 def test_phi_scrubbed_before_send(configured_env: None) -> None:
+    """SSN/phone/email in trace input/output/metadata are redacted BEFORE reaching the SDK (master plan §12 — PHI scrubbing)."""
     fake = _FakeSDK()
 
     def factory(**_kwargs: Any) -> _FakeSDK:
@@ -115,6 +117,7 @@ def test_phi_scrubbed_before_send(configured_env: None) -> None:
 
 @pytest.mark.unit
 def test_record_llm_call_emits_generation(configured_env: None) -> None:
+    """`record_llm_call` emits a Langfuse generation event with token + cost metadata."""
     fake = _FakeSDK()
     client = LangfuseClient(sdk_factory=lambda **_kw: fake)
 
@@ -135,6 +138,7 @@ def test_record_llm_call_emits_generation(configured_env: None) -> None:
 
 @pytest.mark.unit
 def test_record_llm_call_scrubs_error_text(configured_env: None) -> None:
+    """Error strings passed to `record_llm_call` are PHI-scrubbed (MRN → `[REDACTED-MRN]`)."""
     fake = _FakeSDK()
     client = LangfuseClient(sdk_factory=lambda **_kw: fake)
 
@@ -152,6 +156,7 @@ def test_record_llm_call_scrubs_error_text(configured_env: None) -> None:
 
 @pytest.mark.unit
 def test_flush_forwards_to_sdk(configured_env: None) -> None:
+    """`flush()` forwards to the underlying SDK for at-shutdown drain."""
     fake = _FakeSDK()
     client = LangfuseClient(sdk_factory=lambda **_kw: fake)
     client.flush()

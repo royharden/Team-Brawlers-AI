@@ -9,9 +9,8 @@ from tests.unit.api.conftest import seed_delta_snapshot
 
 
 @pytest.mark.unit
-def test_delta_trend_respects_last_param(
-    client: TestClient, seeded_session
-) -> None:
+def test_delta_trend_respects_last_param(client: TestClient, seeded_session) -> None:
+    """`/v1/delta/trend?last=N` returns exactly N most-recent snapshots."""
     for i in range(6):
         seed_delta_snapshot(
             seeded_session,
@@ -27,9 +26,8 @@ def test_delta_trend_respects_last_param(
 
 
 @pytest.mark.unit
-def test_delta_snapshot_fetch_by_fingerprint(
-    client: TestClient, seeded_session
-) -> None:
+def test_delta_snapshot_fetch_by_fingerprint(client: TestClient, seeded_session) -> None:
+    """`/v1/delta/snapshot/{fingerprint}` returns the most-recent snapshot for a fingerprint."""
     seed_delta_snapshot(
         seeded_session,
         fingerprint="fp-xyz",
@@ -48,5 +46,6 @@ def test_delta_snapshot_fetch_by_fingerprint(
 
 @pytest.mark.unit
 def test_delta_snapshot_404(client: TestClient) -> None:
+    """Unknown fingerprint returns 404."""
     r = client.get("/v1/delta/snapshot/unknown-fp")
     assert r.status_code == 404

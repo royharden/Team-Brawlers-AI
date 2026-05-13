@@ -75,9 +75,7 @@ def fake_openai_factory(monkeypatch: pytest.MonkeyPatch) -> list[_FakeOpenAI]:
         created.append(client)
         return client
 
-    monkeypatch.setattr(
-        "agentforge.redteam.openrouter_client.OpenAI", _factory
-    )
+    monkeypatch.setattr("agentforge.redteam.openrouter_client.OpenAI", _factory)
     return created
 
 

@@ -34,14 +34,14 @@ def _file_imports(path: Path) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 names.add(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                names.add(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
     return names
 
 
 @pytest.mark.unit
 def test_ui_layer_does_not_import_memory_modules() -> None:
+    """Architecture invariant: nothing under `agentforge/ui/` may import `agentforge.memory.{db,models,repo}` (AgDR-0002 / master plan §4)."""
     offenders: list[tuple[str, str]] = []
     for py in UI_PKG_ROOT.rglob("*.py"):
         for imp in _file_imports(py):
@@ -49,8 +49,7 @@ def test_ui_layer_does_not_import_memory_modules() -> None:
                 if imp == prefix or imp.startswith(prefix + "."):
                     offenders.append((str(py.relative_to(REPO_ROOT)), imp))
     assert not offenders, (
-        "agentforge/ui/ must be HTTP-only (no memory.* imports). "
-        f"Offenders: {offenders}"
+        "agentforge/ui/ must be HTTP-only (no memory.* imports). " f"Offenders: {offenders}"
     )
 
 
@@ -63,9 +62,7 @@ def test_ui_layer_only_imports_api_responses_from_api() -> None:
         for imp in _file_imports(py):
             if not imp.startswith("agentforge.api"):
                 continue
-            if imp == "agentforge.api.responses" or imp.startswith(
-                "agentforge.api.responses."
-            ):
+            if imp == "agentforge.api.responses" or imp.startswith("agentforge.api.responses."):
                 continue
             offenders.append((str(py.relative_to(REPO_ROOT)), imp))
     assert not offenders, (

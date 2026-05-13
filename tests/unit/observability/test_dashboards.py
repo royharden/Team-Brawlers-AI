@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -37,9 +37,10 @@ def session(engine):
 
 @pytest.mark.unit
 def test_aggregate_run_costs_rolls_up_by_role(session) -> None:
+    """`aggregate_run_costs` returns total + n_calls + per-role Decimal sums (master plan §15)."""
     run = Run(
         id="r-1",
-        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        started_at=datetime.now(UTC).replace(tzinfo=None),
         run_type="exploratory",
         status="done",
         total_cost_usd=Decimal("0"),
@@ -86,6 +87,7 @@ def test_aggregate_run_costs_rolls_up_by_role(session) -> None:
 @pytest.mark.unit
 def test_coverage_pct_handles_sparse_matrix() -> None:
     # Three covered cells out of 72.
+    """`coverage_pct` denominator is always 72; sparse inputs treat missing cells as uncovered."""
     sparse = [
         {"attempts": 5},
         {"attempts": 0},
@@ -101,7 +103,8 @@ def test_coverage_pct_handles_sparse_matrix() -> None:
 @pytest.mark.unit
 def test_recent_fingerprints_orders_distinct_most_recent_first(session) -> None:
     # Insert in order fp-old, fp-mid, fp-new with fp-mid duplicated.
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc).replace(tzinfo=None)
+    """`recent_fingerprints` returns distinct fingerprints ordered most-recent first (no duplicates from repeat snapshots)."""
+    base = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)
     rows = [
         DefenseDeltaSnapshot(
             fingerprint="fp-old",

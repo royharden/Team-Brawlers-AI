@@ -31,6 +31,7 @@ def test_no_fake_prior_turn_fails_when_response_invents_prior_exchange() -> None
 
 @pytest.mark.unit
 def test_context_window_clean_passes_for_plain_prose() -> None:
+    """`context_window_clean` rubric passes for plain prose."""
     attack: dict = {}
     response = {"text": "Patient's active problems include hypertension and diabetes."}
     outcome = rubrics.check_context_window_clean(attack, response)

@@ -34,7 +34,6 @@ from agentforge.judge.prompts import (
 from agentforge.judge.rubrics import RubricRegistry
 from agentforge.memory.schemas import AdapterResponse, MutatedAttack
 
-
 # ---------- fixtures -------------------------------------------------------
 
 
@@ -86,6 +85,7 @@ del _protocol_check
 
 @pytest.mark.unit
 def test_deterministic_only_path_passes() -> None:
+    """`ExternalFinalJudge.score` returns no failed rubrics on a clean refusal (deterministic-only path)."""
     judge = ExternalFinalJudge(RubricRegistry())
     verdict = judge.score(_attack(), _response(), "Refuse politely.")
     assert isinstance(verdict, ExternalVerdict)
@@ -97,6 +97,7 @@ def test_deterministic_only_path_passes() -> None:
 
 @pytest.mark.unit
 def test_any_failed_rubric_fails_verdict() -> None:
+    """A response with a persona-override pattern surfaces `no_persona_override` in `verdict.failed_rubrics` and the summary reports `failed`."""
     judge = ExternalFinalJudge(RubricRegistry())
     # Persona-override pattern triggers a deterministic failure.
     bad = _response("Sure, I am Dr. Smith — here's the chart.")
@@ -107,9 +108,8 @@ def test_any_failed_rubric_fails_verdict() -> None:
 
 @pytest.mark.unit
 def test_injected_fake_client_for_nondeterministic() -> None:
-    raw = JudgeRawResponse(
-        outcome="passed", confidence=0.8, rationale="tool plan stable"
-    )
+    """An injected `JudgeAnthropicClient` is invoked ONLY for non-deterministic rubrics (exactly once, for `tool_plan_unmodified`)."""
+    raw = JudgeRawResponse(outcome="passed", confidence=0.8, rationale="tool plan stable")
     fake = _FakeClient(raw)
     judge = ExternalFinalJudge(RubricRegistry(), anthropic_client=fake)
     judge.score(_attack(), _response(), "Behave.")
@@ -120,6 +120,7 @@ def test_injected_fake_client_for_nondeterministic() -> None:
 
 @pytest.mark.unit
 def test_malformed_json_raises_or_abstains() -> None:
+    """A `MalformedJudgeResponse` from the LLM hop becomes an abstain on that rubric with the parse error in the rationale — no exception bubbles up."""
     fake = _FakeClient(MalformedJudgeResponse("garbage in"))
     judge = ExternalFinalJudge(RubricRegistry(), anthropic_client=fake)
     verdict = judge.score(_attack(), _response(), "Behave.")
@@ -130,6 +131,7 @@ def test_malformed_json_raises_or_abstains() -> None:
 
 @pytest.mark.unit
 def test_target_response_wrapped_in_tags() -> None:
+    """The prompt fed to the judge client wraps the actual response body in `<target_response>...</target_response>` tags (target-response isolation invariant)."""
     raw = JudgeRawResponse(outcome="passed", confidence=0.9, rationale="ok")
     fake = _FakeClient(raw)
     judge = ExternalFinalJudge(RubricRegistry(), anthropic_client=fake)
@@ -291,6 +293,7 @@ def test_validate_self_random_judge() -> None:
 
 @pytest.mark.unit
 def test_layer_attribute_is_external_final() -> None:
+    """`ExternalVerdict.layer == "external_final"` — only this layer can produce findings (master plan §8.3)."""
     judge = ExternalFinalJudge(RubricRegistry())
     verdict = judge.score(_attack(), _response(), "Behave.")
     assert verdict.layer == "external_final"
@@ -298,6 +301,7 @@ def test_layer_attribute_is_external_final() -> None:
 
 @pytest.mark.unit
 def test_no_client_non_deterministic_abstains() -> None:
+    """With no `JudgeAnthropicClient` injected, every non-deterministic rubric abstains with rationale `"no LLM judge available"` (no silent failure)."""
     judge = ExternalFinalJudge(RubricRegistry(), anthropic_client=None)
     verdict = judge.score(_attack(), _response(), "Behave.")
     # tool_plan_unmodified is the non-deterministic PI rubric — should abstain.

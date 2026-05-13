@@ -56,7 +56,9 @@ class _FakeClean:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    def paraphrase(self, seed: dict[str, Any], current_prompt: str) -> tuple[str, RefusalInfo | None]:
+    def paraphrase(
+        self, seed: dict[str, Any], current_prompt: str
+    ) -> tuple[str, RefusalInfo | None]:
         _ = seed
         self.calls.append(current_prompt)
         return ("PARAPHRASED: " + current_prompt[:32], None)
@@ -65,7 +67,9 @@ class _FakeClean:
 class _FakeRefusal:
     """Returns a refusal text whose marker detect_refusal will catch."""
 
-    def paraphrase(self, seed: dict[str, Any], current_prompt: str) -> tuple[str, RefusalInfo | None]:
+    def paraphrase(
+        self, seed: dict[str, Any], current_prompt: str
+    ) -> tuple[str, RefusalInfo | None]:
         _ = (seed, current_prompt)
         return (
             "I cannot help with that request.",
@@ -80,7 +84,9 @@ class _FakeRefusal:
 class _FakeRefusalSuggesting:
     """Refusal with the canonical AgDR-0001 reframing suggestion."""
 
-    def paraphrase(self, seed: dict[str, Any], current_prompt: str) -> tuple[str, RefusalInfo | None]:
+    def paraphrase(
+        self, seed: dict[str, Any], current_prompt: str
+    ) -> tuple[str, RefusalInfo | None]:
         _ = (seed, current_prompt)
         return (
             "I'm sorry, but I won't do that.",
@@ -108,6 +114,7 @@ def _job() -> AttackJob:
 
 @pytest.mark.unit
 def test_generate_with_clean_paraphrase_returns_paraphrased_prompt() -> None:
+    """`RedTeamAgent.generate` with a fake AnthropicClient that paraphrases cleanly records `rationale="anthropic-paraphrase"`."""
     client = _FakeClean()
     agent = RedTeamAgent(
         SeedCatalog(), _stack(), AttackLineage(), anthropic_client=client, rng_seed=1
@@ -123,6 +130,7 @@ def test_generate_with_clean_paraphrase_returns_paraphrased_prompt() -> None:
 
 @pytest.mark.unit
 def test_generate_with_refusal_records_refusal_signal() -> None:
+    """`RedTeamAgent.generate` with a fake AnthropicClient that refuses sets `refusal_observed=True` and a reframing suggestion."""
     agent = RedTeamAgent(
         SeedCatalog(),
         _stack(),
@@ -139,6 +147,7 @@ def test_generate_with_refusal_records_refusal_signal() -> None:
 
 @pytest.mark.unit
 def test_generate_with_refusal_suggesting_carries_authorised_pentest_reframing() -> None:
+    """Refusal with the canonical AgDR-0001 reframing surfaces in `MutatedAttack.refusal_reframing_suggestion`."""
     agent = RedTeamAgent(
         SeedCatalog(),
         _stack(),
@@ -148,13 +157,12 @@ def test_generate_with_refusal_suggesting_carries_authorised_pentest_reframing()
     )
     attack = agent.generate(_job())
     assert attack.refusal_observed is True
-    assert "AUTHORIZED PENTEST per AgDR-0001" in (
-        attack.refusal_reframing_suggestion or ""
-    )
+    assert "AUTHORIZED PENTEST per AgDR-0001" in (attack.refusal_reframing_suggestion or "")
 
 
 @pytest.mark.unit
 def test_generate_without_client_falls_back_to_deterministic_mutators_only() -> None:
+    """With no AnthropicClient injected, `RedTeamAgent.generate` produces a deterministic-mutator-only attack envelope."""
     agent = RedTeamAgent(SeedCatalog(), _stack(), AttackLineage(), rng_seed=1)
     attack = agent.generate(_job())
     assert attack.refusal_observed is False

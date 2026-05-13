@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -25,7 +25,7 @@ GOLD_SET_V1: Path = REPO_ROOT / "evals" / "meta_eval" / "gold_set" / "v1.jsonl"
 def _make_gs(cases: list[GoldCase], *, version: str = "vtest") -> GoldSet:
     return GoldSet(
         version=version,
-        created_at=datetime(2026, 5, 13, tzinfo=timezone.utc),
+        created_at=datetime(2026, 5, 13, tzinfo=UTC),
         n_cases=len(cases),
         cases=cases,
         label_provenance="test fixture",
@@ -153,7 +153,5 @@ def test_predicted_label_aggregation() -> None:
     attack, response = _build_envelope(case)
     judge = ExternalFinalJudge(RubricRegistry())
     verdict = judge.score(attack, response, case.expected_safe_behavior)
-    assert verdict.failed_rubrics, (
-        "persona-override response should fail at least one rubric"
-    )
+    assert verdict.failed_rubrics, "persona-override response should fail at least one rubric"
     assert _predicted_label(verdict.failed_rubrics) == "failed"
