@@ -139,3 +139,122 @@ def test_lineage_recent_joins_category_and_strategy(client: TestClient, seeded_s
     assert strats == {"single_turn", "indirect_pdf"}
     # Latency surfaces from attack_traces.
     assert any(r["latency_ms"] >= 100 for r in rows)
+
+
+# --- Sub-plan Next05 §2: DB-backed lineage tree ---------------------------
+
+
+def _seed_lineage_chain(session) -> tuple[str, str, str]:
+    """Insert a 3-row lineage chain: root → child1 → grandchild.
+    Returns (root_attack_id, child_attack_id, grandchild_attack_id)."""
+    import json
+    from datetime import UTC, datetime
+
+    from agentforge.memory.models import AttackJob, AttackTrace
+    from tests.unit.api.conftest import seed_run
+
+    seed_run(session, "run-lineage")
+    base = datetime.now(UTC).replace(tzinfo=None)
+    root_aid = "aid-root"
+    child_aid = "aid-child"
+    grand_aid = "aid-grandchild"
+    rows = [
+        ("job-root", root_aid, None, ["seed_baseline"]),
+        ("job-child", child_aid, root_aid, ["role_wrap.doctor"]),
+        ("job-grand", grand_aid, child_aid, ["role_wrap.doctor", "encoders.base64"]),
+    ]
+    for i, (jid, aid, parent_aid, mutators) in enumerate(rows):
+        session.add(
+            AttackJob(
+                id=jid,
+                run_id="run-lineage",
+                category="prompt_injection",
+                strategy="single_turn",
+                seed_id="seed_x",
+                status="completed",
+                created_at=base,
+            )
+        )
+        session.add(
+            AttackTrace(
+                id=f"trace-{i}",
+                attack_job_id=jid,
+                attack_id=aid,
+                parent_attack_id=parent_aid,
+                mutator_chain_json=json.dumps(mutators),
+                latency_ms=100 + i,
+            )
+        )
+    session.flush()
+    return root_aid, child_aid, grand_aid
+
+
+@pytest.mark.unit
+def test_lineage_for_attack_walks_db_when_in_process_registry_empty(
+    client: TestClient, seeded_session
+) -> None:
+    """`GET /v1/lineage/{attack_id}` falls back to a DB walk of
+    `attack_traces.parent_attack_id` when the in-process registry has
+    nothing for the id (sub-plan Next05 §2)."""
+    set_lineage(AttackLineage())  # ensure in-process registry is empty
+    root_aid, child_aid, grand_aid = _seed_lineage_chain(seeded_session)
+    seeded_session.commit()
+
+    r = client.get(f"/v1/lineage/{root_aid}")
+    assert r.status_code == 200
+    tree = r.json()
+    assert tree["attack_id"] == root_aid
+    assert len(tree["children"]) == 1
+    assert tree["children"][0]["attack_id"] == child_aid
+    assert len(tree["children"][0]["children"]) == 1
+    assert tree["children"][0]["children"][0]["attack_id"] == grand_aid
+    # mutator_chain round-trips from JSON.
+    assert tree["children"][0]["children"][0]["mutator_chain"] == [
+        "role_wrap.doctor",
+        "encoders.base64",
+    ]
+
+
+@pytest.mark.unit
+def test_lineage_for_attack_subtree_lookup_works(client: TestClient, seeded_session) -> None:
+    """Looking up a non-root attack_id returns the subtree rooted at it
+    (sub-plan Next05 §2)."""
+    set_lineage(AttackLineage())
+    _root, child_aid, grand_aid = _seed_lineage_chain(seeded_session)
+    seeded_session.commit()
+
+    r = client.get(f"/v1/lineage/{child_aid}")
+    assert r.status_code == 200
+    tree = r.json()
+    assert tree["attack_id"] == child_aid
+    assert len(tree["children"]) == 1
+    assert tree["children"][0]["attack_id"] == grand_aid
+
+
+@pytest.mark.unit
+def test_lineage_for_attack_returns_404_when_neither_registry_nor_db_has_it(
+    client: TestClient, seeded_session
+) -> None:
+    """If the in-process registry AND the DB both lack the attack_id, the
+    endpoint returns 404 (sub-plan Next05 §2)."""
+    set_lineage(AttackLineage())
+    _seed_lineage_chain(seeded_session)
+    seeded_session.commit()
+
+    r = client.get("/v1/lineage/aid-does-not-exist")
+    assert r.status_code == 404
+
+
+@pytest.mark.unit
+def test_lineage_recent_uses_attack_id_when_present(client: TestClient, seeded_session) -> None:
+    """`/v1/lineage/recent.rows[*].attack_id` returns the agent-level id
+    (`attack_traces.attack_id`) when set, falls back to the trace row PK
+    when not (pre-Next05-migration rows). Sub-plan Next05 §2."""
+    _seed_lineage_chain(seeded_session)
+    seeded_session.commit()
+
+    rows = client.get("/v1/lineage/recent").json()["rows"]
+    aids = {r["attack_id"] for r in rows}
+    # All 3 rows have attack_id populated → endpoint returns them, not the
+    # trace PKs (`trace-0`, `trace-1`, `trace-2`).
+    assert aids == {"aid-root", "aid-child", "aid-grandchild"}

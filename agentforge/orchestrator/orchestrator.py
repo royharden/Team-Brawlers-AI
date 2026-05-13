@@ -625,6 +625,13 @@ class OrchestratorAgent:
             row = AttackTraceRow(
                 id=trace_id,
                 attack_job_id=str(job.id),
+                # Sub-plan Next05 §2: agent-level lineage columns so the
+                # AttackLineage page can rebuild parent/child trees from
+                # the DB across uvicorn restarts.
+                attack_id=str(attack.attack_id) if attack.attack_id else None,
+                parent_attack_id=(
+                    str(attack.parent_attack_id) if attack.parent_attack_id else None
+                ),
                 mutator_chain_json=json.dumps(list(attack.mutator_chain or [])),
                 rendered_prompt=(attack.rendered_prompt or "")[:4096],
                 rendered_document=None,

@@ -74,6 +74,11 @@ class AttackTrace(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     attack_job_id: Mapped[str] = mapped_column(String(36), ForeignKey("attack_jobs.id"))
+    # Sub-plan Next05 §2: agent-level lineage columns. Both nullable so
+    # pre-migration rows survive (their lineage is unreachable, only post-
+    # migration writes can be walked). Indexed for the lineage tree query.
+    attack_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    parent_attack_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     mutator_chain_json: Mapped[str] = mapped_column(Text, default="[]")
     rendered_prompt: Mapped[str] = mapped_column(Text, default="")
     rendered_document: Mapped[str | None] = mapped_column(Text, nullable=True)

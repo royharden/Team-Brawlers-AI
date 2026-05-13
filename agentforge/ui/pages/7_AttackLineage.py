@@ -68,16 +68,17 @@ def render() -> None:
         f"attack_id: {selected.get('attack_id')}\nattack_job_id: {selected.get('attack_job_id')}"
     )
 
-    st.subheader("Lineage tree (in-process registry)")
+    st.subheader("Lineage tree")
     st.caption(
-        "The lineage tree is populated by the orchestrator at runtime and is "
-        "empty across uvicorn restarts. The trace metadata above is DB-backed "
-        "and survives restarts."
+        "Tries the in-process AttackLineage registry first (live within "
+        "this uvicorn process), falls back to a DB walk of "
+        "`attack_traces.parent_attack_id` (sub-plan Next05 §2 — survives "
+        "restarts for any attack written post-migration)."
     )
     try:
         tree = client.lineage(str(selected.get("attack_id")))
     except Exception as exc:
-        st.warning(f"no in-process lineage tree for this attack_id: {exc}")
+        st.warning(f"no lineage tree available for this attack_id: {exc}")
         return
     _render_node(tree)
     with st.expander("Raw JSON"):
