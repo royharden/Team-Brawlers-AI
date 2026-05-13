@@ -3,6 +3,9 @@
 Shows precision / recall / F1 / Krippendorff α with floor-met badges and
 a working **Recompute** button (sub-plan Next03 §3.4) that POSTs to
 ``/v1/judge/recompute`` and refreshes the page on success.
+
+Sub-plan Next04 added the layer selector — the page reads + recomputes
+either ``external_final`` or ``internal_progress`` from the same UI.
 """
 
 from __future__ import annotations
@@ -16,14 +19,19 @@ from agentforge.ui.api_client import AgentForgeClient
 
 # Repo root: agentforge/ui/pages/6_JudgeMeta.py -> parents[3]
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_META_PATH = _REPO_ROOT / "evals" / "meta_eval" / "judge_external_final_v1_metrics.json"
+_META_DIR = _REPO_ROOT / "evals" / "meta_eval"
 
 
-def _load_metrics() -> dict:
-    if not _META_PATH.exists():
+def _meta_path(layer: str) -> Path:
+    return _META_DIR / f"judge_{layer}_v1_metrics.json"
+
+
+def _load_metrics(layer: str) -> dict:
+    path = _meta_path(layer)
+    if not path.exists():
         return {}
     try:
-        loaded = json.loads(_META_PATH.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
     return loaded if isinstance(loaded, dict) else {}
@@ -31,9 +39,17 @@ def _load_metrics() -> dict:
 
 def render() -> None:
     st.title("Judge Meta-Eval")
-    data = _load_metrics()
+
+    layer = st.selectbox(
+        "Judge layer",
+        options=["external_final", "internal_progress"],
+        index=0,
+        help="external_final = the binding rubric judge (Sonnet). internal_progress = the fast Haiku judge used for branch pruning.",
+    )
+
+    data = _load_metrics(layer)
     if not data:
-        st.warning(f"No meta-eval data found at {_META_PATH}.")
+        st.warning(f"No meta-eval data found at {_meta_path(layer)}. Run Recompute below.")
     else:
         metrics = data.get("metrics") or {}
         floor = data.get("floor") or {}
@@ -52,11 +68,11 @@ def render() -> None:
             msg = f"{k}: floor={threshold} | met={ok}"
             (st.success if ok else st.error)(msg)
 
-    if st.button("Recompute", type="primary"):
+    if st.button(f"Recompute {layer}", type="primary"):
         client = AgentForgeClient()
         try:
-            with st.spinner("Re-running meta-eval against the gold set..."):
-                client.recompute_judge_meta(layer="external_final")
+            with st.spinner(f"Re-running meta-eval ({layer}) against the gold set..."):
+                client.recompute_judge_meta(layer=layer)
         except Exception as exc:
             st.error(f"recompute failed: {exc}")
             return
