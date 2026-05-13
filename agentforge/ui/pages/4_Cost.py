@@ -53,11 +53,13 @@ def render() -> None:
     rows = cost_table(projections)
     if rows:
         st.dataframe(rows)
+        if projections.get("pricing_retrieved_on"):
+            st.caption(
+                f"Pricing retrieved {projections['pricing_retrieved_on']} · "
+                f"actual dev spend so far: {projections.get('actual_dev_spend_usd', '0.00')}"
+            )
     else:
-        st.info(
-            "No cost-extrapolate output found. Run "
-            "`python scripts/cost_extrapolate.py` to populate."
-        )
+        st.info("Projections temporarily unavailable — check `/v1/cost/projections` log.")
 
     st.markdown(COST_EXPLAINER)
 

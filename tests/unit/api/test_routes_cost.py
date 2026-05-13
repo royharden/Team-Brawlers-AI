@@ -1,9 +1,16 @@
-"""Tests for /v1/cost — master plan §4 / §15."""
+"""Tests for /v1/cost — master plan §4 / §15.
+
+Sub-plan Next03 §3.3: `/v1/cost/projections` no longer reads from a JSON
+file in ``evals/results/`` — it computes in-process from
+``config/pricing.yml`` + the session's ``cost_ledger`` table. The
+file-based behavior previously asserted by
+``test_cost_projections_reads_latest_file`` is gone; this file pins the
+new contract.
+"""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,38 +36,36 @@ def test_cost_today_aggregates_ledger(client: TestClient, seeded_session) -> Non
 
 
 @pytest.mark.unit
-def test_cost_projections_reads_latest_file(
-    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_cost_projections_computed_from_pricing_yml_with_empty_ledger(
+    client: TestClient,
 ) -> None:
-    """`/v1/cost/projections` reads the most-recent `evals/results/cost_extrapolate_*.json`."""
-    payload = {
-        "generated_at": "2026-01-01T00:00:00Z",
-        "pricing_retrieved_on": "2026-01-01",
-        "actual_dev_spend_usd": "1.23",
-        "scales": [
-            {
-                "n_runs": 100,
-                "per_run_usd": "0.012345",
-                "total_usd": "1.23",
-                "infra_monthly_usd": "0.00",
-                "architecture_notes": "fixture",
-                "by_role_usd": {"red_team": "0.0"},
-            }
-        ],
-    }
-    results_dir = tmp_path / "results"
-    results_dir.mkdir()
-    fpath = results_dir / "cost_extrapolate_20260101T000000Z.json"
-    fpath.write_text(json.dumps(payload), encoding="utf-8")
+    """`/v1/cost/projections` returns the four-scale projection with non-zero
+    `per_run_usd` even when the cost_ledger is empty — pricing.yml + the
+    `DEFAULT_ASSUMPTIONS` model are sufficient input (sub-plan Next03 §3.3).
+    """
+    r = client.get("/v1/cost/projections")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["pricing_retrieved_on"] == "2026-05-13"
+    assert {s["n_runs"] for s in body["scales"]} == {100, 1000, 10000, 100000}
+    # Every scale has a non-zero per-run cost (the External Judge dominates).
+    for s in body["scales"]:
+        assert Decimal(s["per_run_usd"]) > Decimal("0")
+    # No ledger rows → spend is reported as "0.00 (modelled)".
+    assert "modelled" in body["actual_dev_spend_usd"]
 
-    # Patch the resolved dir the route reads from.
-    import agentforge.api.routes_cost as mod
 
-    monkeypatch.setattr(mod, "_COST_RESULTS_DIR", results_dir)
+@pytest.mark.unit
+def test_cost_projections_reflects_recent_ledger_spend(client: TestClient, seeded_session) -> None:
+    """Seeded `cost_ledger` rows flow into `actual_dev_spend_usd` on the projections
+    payload (sub-plan Next03 §3.3)."""
+    seed_cost(seeded_session, role="orchestrator", amount="0.40")
+    seed_cost(seeded_session, role="external_judge", amount="2.10")
+    seed_cost(seeded_session, role="external_judge", amount="0.05")
+    seeded_session.commit()
 
     r = client.get("/v1/cost/projections")
     assert r.status_code == 200
     body = r.json()
-    assert body["actual_dev_spend_usd"] == "1.23"
-    assert body["scales"][0]["n_runs"] == 100
-    assert body["scales"][0]["architecture_notes"] == "fixture"
+    # Sum: 0.40 + 2.10 + 0.05 = 2.55. The serializer quantizes to "0.01" places.
+    assert body["actual_dev_spend_usd"] == "2.55"
