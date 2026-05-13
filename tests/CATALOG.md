@@ -272,6 +272,13 @@ the contract this catalog enforces.
 | `tests/unit/orchestrator/test_orchestrator_prompts.py::test_template_renders_with_expected_fields` | `unit` | The user prompt template must accept every field named in the spec. |
 | `tests/unit/orchestrator/test_orchestrator_prompts.py::test_planner_response_json_shape` | `unit` | PlannerResponse parses the schema the system prompt advertises. |
 | `tests/unit/orchestrator/test_orchestrator_prompts.py::test_batch_size_honored_when_planner_returns_more` | `unit` | plan_next_batch must cap selections at batch_size even if the planner |
+| `tests/unit/orchestrator/test_persistence.py::test_persistence_off_when_session_factory_none` | `unit` | Default construction (no session_factory) leaves DB writes off. |
+| `tests/unit/orchestrator/test_persistence.py::test_step_writes_run_and_attack_job` | `unit` | One step() iteration inserts exactly one Run + one AttackJob row. |
+| `tests/unit/orchestrator/test_persistence.py::test_step_writes_attack_trace_and_verdicts` | `unit` | One step() inserts one trace + two verdicts (internal + external). |
+| `tests/unit/orchestrator/test_persistence.py::test_step_writes_cost_ledger_rows` | `unit` | One step() inserts cost_ledger rows for each agent role that ran. |
+| `tests/unit/orchestrator/test_persistence.py::test_end_run_finalizes_status_and_total_cost` | `unit` | end_run() updates ended_at, status, halt_reason, and total_cost_usd. |
+| `tests/unit/orchestrator/test_persistence.py::test_coverage_cells_persisted_too` | `unit` | CoverageMatrix.update() runs inside step(); cell row should exist. |
+| `tests/unit/orchestrator/test_persistence.py::test_persistence_idempotent_on_second_step` | `unit` | A second step() reuses the same Run row but creates new AttackJob/Trace. |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_bytes_for_indirect_injection_seed` | `unit` | `DocumentSmuggleMutator.render_document` produces PDF bytes whose round-trip extract carries the seed's `injected_text` (master plan §14 Phase 5 task 2). |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_none_for_non_indirect_seed` | `unit` | A seed without an `indirect_injection` block yields `None` (no spurious PDF generation). |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_three_placement_variants_distinct_mutator_ids` | `unit` | Each concrete variant must register its own id so seeds can pin a |

@@ -13,23 +13,45 @@ Design notes:
   * ``step()`` calls to ``target_adapter.execute`` are wrapped in a try/except
     that translates network/timeout errors to a synthetic
     ``AdapterResponse(error=...)`` rather than aborting the whole run.
+  * **Persistence (AgDR-0017):** when a ``session_factory`` is injected, the
+    orchestrator writes ``Run`` / ``AttackJob`` / ``AttackTrace`` / ``Verdict``
+    / ``CostLedgerEntry`` rows as side-effects of ``step()``. Without a
+    session_factory the orchestrator runs in memory-only mode (preserves
+    test compatibility).
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import uuid
-from collections.abc import Iterable
-from datetime import datetime
+from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
 from loguru import logger
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from agentforge.documentation.agent import DocumentationAgent
 from agentforge.judge.external_final import ExternalFinalJudge, ExternalVerdict
 from agentforge.judge.internal_progress import InternalProgressJudge, InternalVerdict
+from agentforge.memory.models import (
+    AttackJob as AttackJobRow,
+)
+from agentforge.memory.models import (
+    AttackTrace as AttackTraceRow,
+)
+from agentforge.memory.models import (
+    CostLedgerEntry as CostLedgerEntryRow,
+)
+from agentforge.memory.models import (
+    Run as RunRow,
+)
+from agentforge.memory.models import (
+    Verdict as VerdictRow,
+)
 from agentforge.memory.schemas import AdapterResponse, AttackJob, MutatedAttack
 from agentforge.orchestrator.budget_guard import BudgetGuard, HaltReason
 from agentforge.orchestrator.coverage import (
@@ -113,6 +135,18 @@ class OrchestratorAgent:
     # cost_usd. Keeps the BudgetGuard moving forward during tests / smoke runs.
     DEFAULT_PER_ATTACK_COST_USD: Decimal = Decimal("0.001")
 
+    # Per-call cost estimates used for cost_ledger entries when the wrappers
+    # themselves do not surface token counts (AgDR-0016 follow-on #3). Real
+    # cost can drift from these; the BudgetGuard remains the binding ceiling.
+    _COST_ESTIMATE_INTERNAL_JUDGE_USD: Decimal = Decimal("0.002400")
+    _COST_ESTIMATE_EXTERNAL_JUDGE_USD: Decimal = Decimal("0.024000")
+    _COST_ESTIMATE_DOC_AGENT_USD: Decimal = Decimal("0.036000")
+    _COST_ESTIMATE_REDTEAM_USD: Decimal = Decimal("0.000000")  # OpenRouter :free
+    _DEFAULT_INTERNAL_JUDGE_MODEL: str = "claude-haiku-4-6"
+    _DEFAULT_EXTERNAL_JUDGE_MODEL: str = "claude-sonnet-4-6"
+    _DEFAULT_DOC_AGENT_MODEL: str = "claude-sonnet-4-6"
+    _DEFAULT_REDTEAM_MODEL: str = "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
+
     def __init__(
         self,
         redteam: RedTeamAgent,
@@ -128,6 +162,8 @@ class OrchestratorAgent:
         target_fingerprint: str = "",
         recent_fingerprint_change_at: datetime | None = None,
         open_findings: Iterable[dict[str, Any]] | None = None,
+        session_factory: Callable[[], Session] | None = None,
+        run_type: str = "exploratory",
     ) -> None:
         self._redteam = redteam
         self._target_adapter = target_adapter
@@ -141,6 +177,12 @@ class OrchestratorAgent:
         self._target_fingerprint = target_fingerprint
         self._recent_fingerprint_change_at = recent_fingerprint_change_at
         self._open_findings: list[dict[str, Any]] = list(open_findings or [])
+        # AgDR-0017: persistence layer. None = memory-only (default; preserves
+        # test compat). Non-None = each step() side-effects Run / AttackJob /
+        # AttackTrace / Verdict / CostLedgerEntry rows.
+        self._session_factory = session_factory
+        self._run_type = run_type
+        self._run_persisted = False
 
     # ------------------------------------------------------------------ plan
 
@@ -205,7 +247,15 @@ class OrchestratorAgent:
     def step(self, batch_size: int = 10) -> OrchestratorStepResult:
         """One outer-loop iteration. Plans a batch, executes each job, and
         stops the moment ``budget_guard.may_continue`` returns False.
+
+        When a ``session_factory`` was injected at construction, every phase
+        in this loop also writes to the platform DB so the dashboard reflects
+        live state (Run / AttackJob / AttackTrace / Verdict / CostLedgerEntry).
+        Persistence failures are logged at WARNING but never abort the loop.
         """
+        # Ensure the run row exists before doing anything else this step.
+        self._persist_run_if_needed()
+
         result = OrchestratorStepResult()
         if not self._budget.may_continue():
             result.halted = True
@@ -224,6 +274,9 @@ class OrchestratorAgent:
                 category=selection.category,
                 strategy=selection.strategy,
             )
+            # Persist the job row before Red Team runs -- this way an exception
+            # there still leaves an audit trail.
+            self._persist_attack_job(job, status="running")
 
             try:
                 attack = self._redteam.generate(job)
@@ -231,13 +284,29 @@ class OrchestratorAgent:
                 logger.warning("Red Team generate failed: {}", exc)
                 self._coverage.update(selection.category, selection.strategy, outcome_passed=True)
                 self._budget.tick_cost(self.DEFAULT_PER_ATTACK_COST_USD)
+                self._persist_attack_job(job, status="redteam_error", upsert=True)
+                self._persist_cost_ledger(
+                    agent_role="redteam",
+                    provider="openrouter",
+                    model=self._DEFAULT_REDTEAM_MODEL,
+                    cost_usd=self.DEFAULT_PER_ATTACK_COST_USD,
+                )
                 continue
 
             response = self._safe_execute(attack)
             self._budget.tick_target_error(was_error=bool(response.error))
 
+            # Persist the trace AFTER the adapter call so we capture the real
+            # latency + status + body shape.
+            trace_id = self._persist_attack_trace(job=job, attack=attack, response=response)
+
             internal_verdict = self._safe_internal_judge(attack, response)
-            _ = internal_verdict  # consumed by Red Team escalation path; orch keeps for log
+            self._persist_verdict(
+                attack_trace_id=trace_id,
+                layer="internal_progress",
+                verdict=internal_verdict,
+                model=self._DEFAULT_INTERNAL_JUDGE_MODEL,
+            )
 
             expected_safe_behavior = (
                 str(attack.seed_used.get("expected_safe_behavior", ""))
@@ -245,10 +314,21 @@ class OrchestratorAgent:
                 else ""
             )
             external_verdict = self._safe_external_judge(attack, response, expected_safe_behavior)
+            self._persist_verdict(
+                attack_trace_id=trace_id,
+                layer="external_final",
+                verdict=external_verdict,
+                model=(
+                    external_verdict.model
+                    if external_verdict is not None and external_verdict.model
+                    else self._DEFAULT_EXTERNAL_JUDGE_MODEL
+                ),
+            )
 
             outcome_passed = self._verdict_passed(external_verdict)
             self._coverage.update(attack.category, attack.strategy, outcome_passed=outcome_passed)
 
+            doc_agent_ran = False
             if not outcome_passed:
                 try:
                     self._doc.write_report(
@@ -269,20 +349,59 @@ class OrchestratorAgent:
                     )
                     result.findings_written += 1
                     self._budget.tick_finding()
+                    doc_agent_ran = True
                 except Exception as exc:
                     logger.warning("Documentation agent failed: {}", exc)
 
-            # Charge cost — prefer the adapter's reported cost when present,
-            # else the conservative default.
-            cost = (
+            # Per-attack cost: prefer the adapter's reported cost; else the
+            # conservative default. Used by BudgetGuard for halt arithmetic.
+            adapter_cost = (
                 Decimal(str(response.cost_usd))
                 if response.cost_usd and response.cost_usd > 0
                 else self.DEFAULT_PER_ATTACK_COST_USD
             )
-            self._budget.tick_cost(cost)
+            self._budget.tick_cost(adapter_cost)
+
+            # Per-role cost_ledger rows (best-effort estimates for now; real
+            # token counts would come from the wrappers per AgDR-0016 #3).
+            self._persist_cost_ledger(
+                agent_role="redteam",
+                provider="openrouter",
+                model=self._DEFAULT_REDTEAM_MODEL,
+                cost_usd=self._COST_ESTIMATE_REDTEAM_USD,
+            )
+            self._persist_cost_ledger(
+                agent_role="adapter",
+                provider="sidecar",
+                model=str(getattr(self._target_adapter, "name", "sidecar_direct")),
+                cost_usd=adapter_cost,
+            )
+            if internal_verdict is not None:
+                self._persist_cost_ledger(
+                    agent_role="internal_judge",
+                    provider="anthropic",
+                    model=self._DEFAULT_INTERNAL_JUDGE_MODEL,
+                    cost_usd=self._COST_ESTIMATE_INTERNAL_JUDGE_USD,
+                )
+            if external_verdict is not None:
+                self._persist_cost_ledger(
+                    agent_role="external_judge",
+                    provider="anthropic",
+                    model=(external_verdict.model or self._DEFAULT_EXTERNAL_JUDGE_MODEL),
+                    cost_usd=self._COST_ESTIMATE_EXTERNAL_JUDGE_USD,
+                )
+            if doc_agent_ran:
+                self._persist_cost_ledger(
+                    agent_role="documentation",
+                    provider="anthropic",
+                    model=self._DEFAULT_DOC_AGENT_MODEL,
+                    cost_usd=self._COST_ESTIMATE_DOC_AGENT_USD,
+                )
+
             # Per-attack timeout check.
             if response.latency_ms:
                 self._budget.tick_per_attack_latency(response.latency_ms / 1000.0)
+            self._persist_attack_job(job, status="completed", upsert=True)
             result.attacks_executed += 1
 
         result.halted = not self._budget.may_continue()
@@ -339,6 +458,268 @@ class OrchestratorAgent:
         except Exception as exc:
             logger.warning("External judge failed: {}", exc)
             return None
+
+    # --------------------------------------------------- persistence (AgDR-0017)
+
+    def _persist_run_if_needed(self) -> None:
+        """Insert the ``runs`` row on the first persistence operation.
+
+        Idempotent: if a row with this run_id already exists (e.g. the CLI
+        seeded it), we leave it alone. If ``session_factory`` was never
+        provided we're in memory-only mode -- no-op.
+        """
+        if self._run_persisted or self._session_factory is None:
+            return
+        session = self._session_factory()
+        try:
+            existing = session.query(RunRow).filter(RunRow.id == self._run_id).one_or_none()
+            if existing is None:
+                row = RunRow(
+                    id=self._run_id,
+                    started_at=datetime.now(UTC),
+                    run_type=self._run_type,
+                    status="running",
+                    model_resolution_json="{}",
+                    total_cost_usd=Decimal("0"),
+                )
+                session.add(row)
+                session.commit()
+            self._run_persisted = True
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Failed to persist Run row: {}", exc)
+        finally:
+            session.close()
+
+    def _persist_attack_job(
+        self, job: AttackJob, *, status: str = "running", upsert: bool = False
+    ) -> None:
+        """Insert (or upsert) an ``attack_jobs`` row.
+
+        ``upsert=True`` updates the status column of an existing row; this is
+        how we record the post-step "completed" or "redteam_error" status
+        without losing the original insertion timestamp.
+        """
+        if self._session_factory is None:
+            return
+        session = self._session_factory()
+        try:
+            row_id = str(job.id)
+            existing = session.query(AttackJobRow).filter(AttackJobRow.id == row_id).one_or_none()
+            if existing is not None:
+                if upsert:
+                    existing.status = status
+                    session.commit()
+                return
+            row = AttackJobRow(
+                id=row_id,
+                run_id=self._run_id,
+                category=job.category,
+                strategy=job.strategy,
+                seed_id=getattr(job, "seed_id", None),
+                status=status,
+            )
+            session.add(row)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Failed to persist AttackJob: {}", exc)
+        finally:
+            session.close()
+
+    def _persist_attack_trace(
+        self, *, job: AttackJob, attack: MutatedAttack, response: AdapterResponse
+    ) -> str:
+        """Insert one ``attack_traces`` row and return its id.
+
+        The returned id is the FK target for the two ``verdicts`` rows we
+        write next. Returns a synthetic in-memory id when persistence is
+        disabled -- the verdicts persistence then no-ops too.
+        """
+        trace_id = str(uuid.uuid4())
+        if self._session_factory is None:
+            return trace_id
+        session = self._session_factory()
+        try:
+            response_dict: dict[str, Any] = {
+                "status_code": int(getattr(response, "status_code", 0) or 0),
+                "latency_ms": float(getattr(response, "latency_ms", 0.0) or 0.0),
+                "error": getattr(response, "error", None),
+            }
+            # Truncate body_text aggressively before persistence so attack_traces
+            # rows stay small. The Documentation Agent gets the full body.
+            body_preview = ""
+            with contextlib.suppress(AttributeError, TypeError, ValueError):
+                body_preview = (response.body_text or "")[:512]
+            response_dict["body_text_preview"] = body_preview
+
+            request_dict = {
+                "endpoint": (
+                    str(attack.seed_used.get("target_endpoint", "unknown"))
+                    if isinstance(attack.seed_used, dict)
+                    else "unknown"
+                ),
+                "trace_id": str(attack.attack_id),
+            }
+
+            row = AttackTraceRow(
+                id=trace_id,
+                attack_job_id=str(job.id),
+                mutator_chain_json=json.dumps(list(attack.mutator_chain or [])),
+                rendered_prompt=(attack.rendered_prompt or "")[:4096],
+                rendered_document=None,
+                target_request_json=json.dumps(request_dict),
+                target_response_json=json.dumps(response_dict),
+                latency_ms=int(response.latency_ms or 0),
+                target_error=response.error,
+            )
+            session.add(row)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Failed to persist AttackTrace: {}", exc)
+        finally:
+            session.close()
+        return trace_id
+
+    def _persist_verdict(
+        self,
+        *,
+        attack_trace_id: str,
+        layer: str,
+        verdict: InternalVerdict | ExternalVerdict | None,
+        model: str,
+    ) -> None:
+        """Insert one ``verdicts`` row. ``layer`` must be one of
+        ``internal_progress`` or ``external_final`` (CHECK-constrained by the
+        schema).
+        """
+        if self._session_factory is None or verdict is None:
+            return
+        # Derive outcome + confidence + rubric_results_json from the verdict.
+        outcomes = getattr(verdict, "outcomes", {}) or {}
+        passed_count = sum(
+            1
+            for o in outcomes.values()
+            if getattr(o, "passed", False) and not getattr(o, "abstained", False)
+        )
+        failed_count = sum(
+            1
+            for o in outcomes.values()
+            if not getattr(o, "passed", True) and not getattr(o, "abstained", False)
+        )
+        if failed_count > 0:
+            outcome = "failed"
+        elif passed_count > 0:
+            outcome = "passed"
+        else:
+            outcome = "abstain"
+        confidences = [float(getattr(o, "confidence", 0.0) or 0.0) for o in outcomes.values()]
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+        rubric_results = [
+            {
+                "rubric_id": rid,
+                "passed": bool(getattr(o, "passed", False)),
+                "abstained": bool(getattr(o, "abstained", False)),
+                "confidence": float(getattr(o, "confidence", 0.0) or 0.0),
+            }
+            for rid, o in outcomes.items()
+        ]
+
+        session = self._session_factory()
+        try:
+            row = VerdictRow(
+                id=str(uuid.uuid4()),
+                attack_trace_id=attack_trace_id,
+                layer=layer,
+                rubric_results_json=json.dumps(rubric_results),
+                outcome=outcome,
+                confidence=avg_confidence,
+                model=model,
+            )
+            session.add(row)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Failed to persist Verdict({}): {}", layer, exc)
+        finally:
+            session.close()
+
+    def _persist_cost_ledger(
+        self,
+        *,
+        agent_role: str,
+        provider: str,
+        model: str,
+        cost_usd: Decimal,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> None:
+        """Insert one ``cost_ledger`` row.
+
+        Per-call token counts default to 0 because the four Anthropic
+        wrappers do not yet surface ``response.usage`` (AgDR-0016 follow-on
+        #3). The ``cost_usd`` values come from class-level estimates plus
+        the adapter's self-reported cost (when present) -- BudgetGuard
+        remains the binding cost ceiling regardless.
+        """
+        if self._session_factory is None:
+            return
+        session = self._session_factory()
+        try:
+            row = CostLedgerEntryRow(
+                id=str(uuid.uuid4()),
+                run_id=self._run_id,
+                agent_role=agent_role,
+                provider=provider,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+            )
+            session.add(row)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Failed to persist CostLedgerEntry({}): {}", agent_role, exc)
+        finally:
+            session.close()
+
+    def end_run(self, *, status: str = "completed", halt_reason: str | None = None) -> None:
+        """Finalize the current ``runs`` row.
+
+        Called by the CLI (or other harness) after the campaign's last
+        ``step()``. Updates ``ended_at`` + ``status`` + ``total_cost_usd``
+        (summed from cost_ledger) + ``halt_reason``. No-op if persistence
+        was never enabled.
+        """
+        if self._session_factory is None:
+            return
+        session = self._session_factory()
+        try:
+            run = session.query(RunRow).filter(RunRow.id == self._run_id).one_or_none()
+            if run is None:
+                return
+            run.ended_at = datetime.now(UTC)
+            run.status = status
+            if halt_reason is not None:
+                run.halt_reason = halt_reason
+            # Sum the cost_ledger rows for this run into total_cost_usd.
+            total = (
+                session.query(CostLedgerEntryRow)
+                .filter(CostLedgerEntryRow.run_id == self._run_id)
+                .with_entities(CostLedgerEntryRow.cost_usd)
+                .all()
+            )
+            run.total_cost_usd = sum((Decimal(str(r[0])) for r in total), Decimal("0"))
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            logger.warning("Failed to finalize Run row: {}", exc)
+        finally:
+            session.close()
+
+    # ------------------------------------------------------------ helpers cont.
 
     @staticmethod
     def _verdict_passed(verdict: ExternalVerdict | None) -> bool:

@@ -226,15 +226,18 @@ def attack(
         f"-- one orchestrator.step() coming up."
     )
     result = orchestrator.step(batch_size=batch_size)
+    # AgDR-0017: finalize the Run row (ended_at + status + total_cost_usd
+    # summed from cost_ledger). No-op if persistence wasn't injected.
+    finalize_status = "halted" if result.halted else "completed"
+    finalize_halt_reason = result.halt_reason.value if result.halt_reason is not None else None
+    orchestrator.end_run(status=finalize_status, halt_reason=finalize_halt_reason)
     typer.echo(
         json.dumps(
             {
                 "attacks_executed": result.attacks_executed,
                 "findings_written": result.findings_written,
                 "halted": result.halted,
-                "halt_reason": (
-                    result.halt_reason.value if result.halt_reason is not None else None
-                ),
+                "halt_reason": finalize_halt_reason,
             },
             indent=2,
         )

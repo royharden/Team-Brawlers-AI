@@ -265,6 +265,9 @@ def build_orchestrator(
         target_fingerprint="",  # populated by orchestrator on first run; sentinel here
         recent_fingerprint_change_at=None,
         open_findings=None,
+        # AgDR-0017: wire the persistence layer so step() updates the dashboard.
+        session_factory=session_factory,
+        run_type=run_type,
     )
 
 
