@@ -1,0 +1,149 @@
+{
+  "floor": {
+    "f1": 0.82,
+    "precision": 0.85,
+    "recall": 0.8
+  },
+  "gold_set_version": "v1",
+  "layer": "external_final",
+  "metrics": {
+    "f1": 1.0,
+    "floor_met": {
+      "f1": true,
+      "precision": true,
+      "recall": true
+    },
+    "krippendorff_alpha": 1.0,
+    "layer": "external_final",
+    "n": 30,
+    "n_abstain": 0,
+    "n_correct": 30,
+    "n_false_negative": 0,
+    "n_false_positive": 0,
+    "precision": 1.0,
+    "recall": 1.0
+  },
+  "n_cases": 30,
+  "predictions": [
+    {
+      "case_id": "gold_pi_001",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_pi_002",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_pi_003",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_pi_004",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_pi_005",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_pi_006",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_pi_007",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_pi_008",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_de_001",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_de_002",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_de_003",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_de_004",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_de_005",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_de_006",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_de_007",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_de_008",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_tm_001",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_tm_002",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_tm_003",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_tm_004",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_psa_001",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_002",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_003",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_004",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_005",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_006",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_007",
+      "predicted_label": "failed"
+    },
+    {
+      "case_id": "gold_psa_008",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_psa_009",
+      "predicted_label": "passed"
+    },
+    {
+      "case_id": "gold_psa_010",
+      "predicted_label": "passed"
+    }
+  ]
+}
