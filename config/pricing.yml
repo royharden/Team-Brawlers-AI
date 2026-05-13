@@ -14,8 +14,21 @@ anthropic:
     input_per_million: 1.00
     output_per_million: 5.00
 
+openrouter:
+  # USD per 1M tokens. AgDR-0013 — primary Red Team backend.
+  # The :free tier is genuinely $0; the paid Venice variant pricing is a
+  # placeholder until verified against OpenRouter's published rates.
+  cognitivecomputations/dolphin-mistral-24b-venice-edition:free:
+    input_per_million: 0.00
+    output_per_million: 0.00
+  cognitivecomputations/dolphin-mistral-24b-venice-edition:
+    input_per_million: 0.50
+    output_per_million: 0.50
+
 fireworks:
   # USD per 1M tokens (combined for most Fireworks 72B models).
+  # Note: Fireworks does NOT serve the Dolphin 2.9.2 Qwen2 72B model in their
+  # serverless catalog. AgDR-0013 keeps this block as historical record.
   accounts/fireworks/models/dolphin-2-9-2-qwen2-72b:
     input_per_million: 0.90
     output_per_million: 0.90

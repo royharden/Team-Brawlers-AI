@@ -11,7 +11,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AnthropicConfig(BaseSettings):
-    """Anthropic API config — see AgDR-0001 (Red Team on Anthropic Sonnet)."""
+    """Anthropic API config — primary backend for Judge/Orchestrator/Documentation.
+
+    Note: as of AgDR-0013 the Red Team backend is OpenRouter Dolphin-Mistral
+    24B Venice, NOT Anthropic. The `redteam_model` field below only matters
+    when `REDTEAM_PROVIDER=anthropic` (the emergency-fallback path from
+    superseded AgDR-0001).
+    """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -28,8 +34,42 @@ class AnthropicConfig(BaseSettings):
     redteam_model: str = Field(default="claude-sonnet-4-6", alias="REDTEAM_MODEL")
 
 
+class OpenRouterConfig(BaseSettings):
+    """OpenRouter config — primary Red Team backend per AgDR-0013.
+
+    Uses the OpenAI-compatible REST API at https://openrouter.ai/api/v1.
+    The `openai` Python SDK is the client.
+    """
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    base_url: str = Field(
+        default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
+    )
+    redteam_model: str = Field(
+        default="cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        alias="OPENROUTER_REDTEAM_MODEL",
+    )
+    redteam_fallback_model: str = Field(
+        default="cognitivecomputations/dolphin-mistral-24b-venice-edition",
+        alias="OPENROUTER_REDTEAM_FALLBACK_MODEL",
+    )
+    http_referer: str = Field(default="", alias="OPENROUTER_HTTP_REFERER")
+    x_title: str = Field(default="AgentForge", alias="OPENROUTER_X_TITLE")
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+
 class FireworksConfig(BaseSettings):
-    """Fireworks config — optional; populated to enable Dolphin Red Team (AgDR-0001 rollback)."""
+    """Fireworks config — historical placeholder per AgDR-0013.
+
+    Fireworks does NOT serve Dolphin-2.9.2-Qwen2-72B in their serverless
+    catalog, so this provider is non-functional. Kept here so a future
+    Fireworks reactivation is a one-line swap.
+    """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -128,8 +168,8 @@ class MainConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    redteam_provider: Literal["anthropic", "fireworks"] = Field(
-        default="anthropic", alias="REDTEAM_PROVIDER"
+    redteam_provider: Literal["openrouter", "anthropic", "fireworks"] = Field(
+        default="openrouter", alias="REDTEAM_PROVIDER"
     )
     platform_db_url: str = Field(
         default="sqlite:///./data/agentforge.sqlite", alias="PLATFORM_DB_URL"
@@ -140,6 +180,7 @@ class MainConfig(BaseSettings):
     pricing_yml_freshness_days: int = Field(default=30, alias="PRICING_YML_FRESHNESS_DAYS")
 
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
+    openrouter: OpenRouterConfig = Field(default_factory=OpenRouterConfig)
     fireworks: FireworksConfig = Field(default_factory=FireworksConfig)
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
     budget: BudgetConfig = Field(default_factory=BudgetConfig)

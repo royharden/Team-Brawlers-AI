@@ -13,7 +13,7 @@ The platform attacks a **separate, deployed** Clinical Co-Pilot (the Wk1/Wk2 del
 | Agent | Role | Model | Trust |
 |---|---|---|---|
 | **Orchestrator** | Picks the next attack from coverage gaps + budget + recent target changes. Halts when cost accumulates without signal. | Claude Sonnet 4.6 | Strategic — only role allowed to schedule/halt/raise budget. |
-| **Red Team** | Generates and mutates adversarial inputs. Only agent permitted to compose offensive payloads. Egress only via the allowlist-gated Target Adapter. | Claude Sonnet 4.6 with offensive-pentest framing — see [AgDR-0001](agentdocs/decisions/AgDR-0001-redteam-on-anthropic-not-fireworks.md). | Adversarial. |
+| **Red Team** | Generates and mutates adversarial inputs. Only agent permitted to compose offensive payloads. Egress only via the allowlist-gated Target Adapter. | OpenRouter `cognitivecomputations/dolphin-mistral-24b-venice-edition:free` (uncensored) via OpenAI-compatible SDK — see [AgDR-0013](agentdocs/decisions/AgDR-0013-redteam-on-openrouter-dolphin-venice.md). Emergency fallback: Anthropic Sonnet 4.6 with offensive-pentest framing per (superseded) [AgDR-0001](agentdocs/decisions/AgDR-0001-redteam-on-anthropic-not-fireworks.md). | Adversarial. |
 | **Judge** (split) | **Internal Progress Judge** (Haiku 4.6 + deterministic detectors) feeds near-miss signal back to the Red Team. **External Final Judge** (Sonnet 4.6) emits the binding verdict — the only verdict that can become a finding. Validated against a 100-case meta-eval gold set. | Anthropic Haiku (internal) + Sonnet (external) | Binding — only the external judge produces findings. |
 | **Documentation** | Writes professional vulnerability reports (`VR-####`) tagged with OWASP LLM Top 10 + OWASP Agentic Top 10 + AVID + NIST AI RMF, with reproducible attack sequences and regression-case emission. | Sonnet 4.6 (Haiku for drafts) | Reporting — autonomous up to severity ≥ HIGH, then notifier + human approval gate. |
 
@@ -52,7 +52,8 @@ Team-Brawlers-AI/
 - Docker Desktop (for the local Co-Pilot target — `development-easy` stack)
 - One Anthropic API key (used by all three Anthropic-backed roles unless `ANTHROPIC_API_KEY_REDTEAM` / `_JUDGE` are set separately)
 - Langfuse cloud or self-hosted account
-- (Optional) Fireworks.ai key — enables the planned Dolphin-72B Red Team variant. Off by default per AgDR-0001.
+- **OpenRouter API key** — primary Red Team backend per AgDR-0013. Get one at openrouter.ai (the `:free` Dolphin-Mistral 24B Venice tier costs $0/token during dev).
+- (Optional) Fireworks.ai key — historical placeholder; Fireworks does not serve Dolphin-2.9.2-Qwen2-72B in their serverless catalog. AgDR-0013 documents this.
 
 ### Bootstrap
 

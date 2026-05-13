@@ -1,4 +1,15 @@
-"""Red Team Agent — master plan §8.2 (provider per AgDR-0001: Anthropic Sonnet).
+"""Red Team Agent — master plan §8.2.
+
+Provider: per AgDR-0013, defaults to OpenRouter's
+`cognitivecomputations/dolphin-mistral-24b-venice-edition:free`
+(implemented in `agentforge/redteam/openrouter_client.py`). The
+AgDR-0001 Anthropic-Sonnet path stays available as the emergency
+fallback (`REDTEAM_PROVIDER=anthropic`, implemented in
+`agentforge/redteam/anthropic_client.py`).
+
+The agent depends on the provider-neutral `RedTeamClient` Protocol from
+`agentforge.redteam.client`; the constructor parameter is named
+`client` (with `anthropic_client` kept as a backwards-compat alias).
 
 The `MutatedAttack` envelope is authored in `agentforge.memory.schemas` and
 re-exported here so existing import paths (`from agentforge.redteam.agent
@@ -15,10 +26,13 @@ from loguru import logger
 
 from agentforge.judge.deterministic.refusal_taxonomy import RefusalInfo, detect_refusal
 from agentforge.memory.schemas import AdapterResponse, AttackJob, MutatedAttack
-from agentforge.redteam.anthropic_client import AnthropicClient
+from agentforge.redteam.client import RedTeamClient
 from agentforge.redteam.lineage import AttackLineage
 from agentforge.redteam.mutators.base import MutatorStack
 from agentforge.redteam.seed_catalog.catalog import SeedCatalog
+
+# Backwards-compat name. New code should reference `RedTeamClient`.
+AnthropicClient = RedTeamClient
 
 __all__ = ["MutatedAttack", "RedTeamAgent"]
 

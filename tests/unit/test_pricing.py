@@ -127,15 +127,27 @@ class _FakeAnthropicClient:
 
 
 @pytest.mark.unit
-def test_resolve_models_anthropic_all_found() -> None:
-    fake = _FakeAnthropicClient(
-        ["claude-sonnet-4-6", "claude-haiku-4-6", "claude-haiku-4-5"]
-    )
-    result = resolve_models(anthropic_client=fake)
-    assert isinstance(result, ModelResolution)
-    assert result.resolved["orchestrator"] == "claude-sonnet-4-6"
-    assert result.resolved["fast"] == "claude-haiku-4-6"
-    assert result.substitutions == []
+def test_resolve_models_anthropic_all_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """REDTEAM_PROVIDER=anthropic, all requested models present, no substitution.
+
+    With AgDR-0013 the default REDTEAM_PROVIDER is `openrouter`; this test
+    pins the legacy anthropic path explicitly.
+    """
+    monkeypatch.setenv("REDTEAM_PROVIDER", "anthropic")
+    from agentforge.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        fake = _FakeAnthropicClient(
+            ["claude-sonnet-4-6", "claude-haiku-4-6", "claude-haiku-4-5"]
+        )
+        result = resolve_models(anthropic_client=fake)
+        assert isinstance(result, ModelResolution)
+        assert result.resolved["orchestrator"] == "claude-sonnet-4-6"
+        assert result.resolved["fast"] == "claude-haiku-4-6"
+        assert result.substitutions == []
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.unit

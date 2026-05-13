@@ -1,26 +1,30 @@
-"""Red Team Anthropic client — master plan §8.2 + AgDR-0001.
+"""Red Team Anthropic client — master plan §8.2 + AgDR-0001 (superseded by AgDR-0013).
 
-This is the ONLY module under agentforge/redteam/ that imports the `anthropic`
-SDK. A CI lint (tests/unit/redteam/test_provider_isolation.py) will enforce
-that invariant in Phase 2.
+Per AgDR-0013, the Red Team backend defaults to OpenRouter's Dolphin-Mistral
+24B Venice (`agentforge/redteam/openrouter_client.py`). This module remains
+in-tree as the **emergency fallback** path activated when
+`REDTEAM_PROVIDER=anthropic`.
+
+This is the ONLY module under agentforge/redteam/ that imports the
+`anthropic` SDK. A CI lint
+(`tests/unit/redteam/test_provider_isolation.py`) enforces the invariant.
 """
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any
 
 import anthropic  # noqa: F401  # AgDR-0001 — sanctioned import location
 from loguru import logger
 
 from agentforge.judge.deterministic.refusal_taxonomy import RefusalInfo, detect_refusal
+from agentforge.redteam.client import RedTeamClient
 
-
-class AnthropicClient(Protocol):
-    """Protocol the RedTeamAgent depends on. Tests inject a fake."""
-
-    def paraphrase(
-        self, seed: dict[str, Any], current_prompt: str
-    ) -> tuple[str, RefusalInfo | None]: ...
+# Backwards-compat alias: pre-AgDR-0013 code imported `AnthropicClient` from
+# this module. New code should import `RedTeamClient` from
+# `agentforge.redteam.client`. The alias stays so existing tests don't break.
+AnthropicClient = RedTeamClient
+__all__ = ["AnthropicClient", "RedTeamAnthropicClient"]
 
 
 _OFFENSIVE_PENTEST_SYSTEM_PROMPT: str = (

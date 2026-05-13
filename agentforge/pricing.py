@@ -191,7 +191,9 @@ def resolve_models(
         "fast": cfg.anthropic.fast_model,
         "fast_fallback": cfg.anthropic.fast_fallback_model,
     }
-    if cfg.redteam_provider == "anthropic":
+    if cfg.redteam_provider == "openrouter":
+        requested["redteam"] = cfg.openrouter.redteam_model
+    elif cfg.redteam_provider == "anthropic":
         requested["redteam"] = cfg.anthropic.redteam_model
     else:
         requested["redteam"] = cfg.fireworks.redteam_model
@@ -225,7 +227,13 @@ def resolve_models(
     resolved["fast_fallback"] = requested["fast_fallback"]
 
     # --- Red Team -------------------------------------------------------------
-    if cfg.redteam_provider == "anthropic":
+    if cfg.redteam_provider == "openrouter":
+        resolved["redteam"] = _resolve_openrouter_redteam(
+            cfg=cfg,
+            anthropic_ids=anthropic_ids,
+            substitutions=substitutions,
+        )
+    elif cfg.redteam_provider == "anthropic":
         resolved["redteam"] = _pick(
             requested["redteam"],
             candidates=[requested["redteam"], cfg.anthropic.orchestrator_model],
@@ -302,6 +310,40 @@ def _pick(
             f"{role}: requested {requested!r} not found in provider listing; "
             "keeping requested value and deferring failure to call-time"
         )
+    return requested
+
+
+def _resolve_openrouter_redteam(
+    *,
+    cfg: Any,
+    anthropic_ids: set[str],
+    substitutions: list[str],
+) -> str:
+    """Resolve the Red Team model when REDTEAM_PROVIDER=openrouter (AgDR-0013).
+
+    Strategy:
+    - If OPENROUTER_API_KEY is empty, log the substitution and fall back to
+      Anthropic Sonnet (AgDR-0013's emergency-fallback path).
+    - Otherwise return the configured OpenRouter model verbatim. We do NOT
+      issue a live `GET /api/v1/models` call here because the resolution
+      path runs at startup and we want it cheap + offline-friendly. A real
+      reachability check happens on the first paraphrase call.
+    """
+    requested = cfg.openrouter.redteam_model
+    if not cfg.openrouter.api_key:
+        sonnet = cfg.anthropic.orchestrator_model
+        substitutions.append(
+            f"redteam: OPENROUTER_API_KEY missing; substituting Anthropic "
+            f"{sonnet!r} per AgDR-0013 emergency-fallback path"
+        )
+        logger.warning(
+            "OpenRouter red-team substitution invoked (AgDR-0013): no API key"
+        )
+        # Even though we substitute, only return the substitute if it's
+        # actually present in the Anthropic listing; otherwise keep the
+        # requested OpenRouter id so the runtime error surfaces clearly.
+        if not anthropic_ids or sonnet in anthropic_ids:
+            return sonnet
     return requested
 
 
