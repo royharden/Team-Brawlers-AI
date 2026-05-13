@@ -1,0 +1,85 @@
+name: pre-commit
+
+# Adapted from EMR-SO/openemr/.github/workflows/pre-commit.yml.
+#
+# IMPORTANT scope choice: this workflow runs hooks ONLY on files that
+# changed in the PR (or push), NOT --all-files. Reason: the codebase
+# has pre-existing style/format issues in agentforge/ that the new
+# pre-commit hooks would surface as failures on every run. Per the
+# "organic migration" decision, we let those surface one-by-one as
+# people touch the files in future PRs. To run on every file (e.g.
+# during a planned style-cleanup sprint), invoke manually:
+#
+#     poetry run pre-commit run --all-files
+#
+# or pass `--all-files` via workflow_dispatch if you want a UI button.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      all-files:
+        description: "Run pre-commit on every file in the repo"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so --from-ref / --to-ref can compute the diff.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Cache pre-commit envs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # SKIP the local hooks (mypy, pytest-unit-smoke, test-catalog-freshness)
+      # because they need poetry + the dev dep set installed. Those run in
+      # the main ci.yml job. This workflow narrowly covers the cheap hooks:
+      # ruff, ruff-format, codespell, whitespace/EOF, actionlint, YAML/JSON.
+
+      - name: Run pre-commit on PR-changed files
+        if: github.event_name == 'pull_request'
+        env:
+          SKIP: mypy,pytest-unit-smoke,test-catalog-freshness
+        run: |
+          pre-commit run --show-diff-on-failure \
+            --from-ref "${{ github.event.pull_request.base.sha }}" \
+            --to-ref "${{ github.event.pull_request.head.sha }}"
+
+      - name: Run pre-commit on push-changed files
+        if: github.event_name == 'push'
+        env:
+          SKIP: mypy,pytest-unit-smoke,test-catalog-freshness
+        run: |
+          # GitHub's `before` may be the zero-SHA on a brand new branch push.
+          # Fall back to comparing against the previous commit on the same ref.
+          base="${{ github.event.before }}"
+          if [[ "$base" == "0000000000000000000000000000000000000000" || -z "$base" ]]; then
+            base="HEAD~1"
+          fi
+          pre-commit run --show-diff-on-failure \
+            --from-ref "$base" --to-ref "${{ github.sha }}"
+
+      - name: Run pre-commit on every file (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch' && inputs.all-files == true
+        env:
+          SKIP: mypy,pytest-unit-smoke,test-catalog-freshness
+        run: pre-commit run --all-files --show-diff-on-failure

@@ -1,0 +1,110 @@
+# Pre-commit hook configuration for Team-Brawlers-AI.
+#
+# Adapted from the OpenEMR Clinical Co-Pilot project's discipline contract
+# (EMR-SO/openemr/.pre-commit-config.yaml). Mirrors what `.github/workflows/`
+# enforces so CI failures get caught locally BEFORE push.
+#
+# One-time setup per clone (from this directory):
+#   pip install --user pre-commit   # (or poetry add --group dev pre-commit && poetry install)
+#   pre-commit install              # symlinks .git/hooks/pre-commit
+#   pre-commit install --hook-type pre-push  # enables pre-push smoke test
+#
+# Run on staged + modified files before every commit (via helper):
+#   ./scripts/precommit_changed_files.sh           # bash / git-bash
+#   .\scripts\precommit_changed_files.ps1          # PowerShell
+#
+# Run on all files (e.g. after a config change):
+#   pre-commit run --all-files
+#
+# See agentdocs/agent_lessons.md "pre-commit is not auto-installed" lesson.
+
+exclude: |
+  (?x)^(
+    # Lock files (generated)
+    poetry\.lock$|
+    # Minified files
+    .*\.min\.(js|css)$|
+    # Python build artefacts
+    .*\.egg-info/|
+    __pycache__/|
+    \.pytest_cache/|
+    \.mypy_cache/|
+    \.ruff_cache/|
+    # The cloned target under openemr/ is read-only for this project
+    # (it has its own upstream discipline)
+    openemr/|
+    # Eval mock-cache files (deterministic blobs — never hand-edited)
+    evals/cache/
+  )
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.5.0
+  hooks:
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: check-yaml
+  - id: check-added-large-files
+    args: ['--maxkb=512']
+  - id: check-merge-conflict
+  - id: check-json
+  - id: check-toml
+  - id: mixed-line-ending
+    args: ['--fix=lf']
+
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.4.1
+  hooks:
+  - id: codespell
+    # Explicit args so the hook doesn't depend on codespell's pyproject.toml
+    # auto-discovery (which we've observed not picking up `ignore-words` under
+    # pre-commit's cached venv). Skip globs match [tool.codespell] in pyproject.
+    args:
+      - --ignore-words=.codespell-ignore-words.txt
+      - --skip=*.lock,*.min.js,*.min.css,openemr/*,evals/cache/*,tests/CATALOG.md,.git/*,.mypy_cache/*,.ruff_cache/*,.pytest_cache/*,__pycache__/*
+      - --quiet-level=2
+
+# actionlint for GitHub Actions workflow YAML
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.10
+  hooks:
+  - id: actionlint-docker
+
+# Ruff: lint + format (replaces black + isort + flake8)
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.7.4
+  hooks:
+  - id: ruff
+    args: ['--fix', '--exit-non-zero-on-fix']
+  - id: ruff-format
+
+# Local hooks — invoked via Poetry so versions match pyproject.toml
+- repo: local
+  hooks:
+  - id: mypy
+    name: mypy type-check (agentforge)
+    entry: poetry run mypy
+    language: system
+    types: [python]
+    pass_filenames: false
+    args: ['agentforge']
+
+  # Pre-push only: fast unit smoke. Keeps commits cheap, blocks pushes
+  # that would fail CI. Budget: <30s (per testing-discipline contract L1).
+  - id: pytest-unit-smoke
+    name: pytest unit smoke (pre-push, <30s)
+    entry: poetry run pytest -m unit -x -q --no-header
+    language: system
+    pass_filenames: false
+    stages: [pre-push]
+    always_run: true
+
+  # Pre-push only: catalog freshness. Regenerator must produce identical
+  # tests/CATALOG.md; if not, regenerate + commit before re-pushing.
+  - id: test-catalog-freshness
+    name: tests/CATALOG.md freshness check
+    entry: poetry run python scripts/regenerate_test_catalog.py --check
+    language: system
+    pass_filenames: false
+    stages: [pre-push]
+    always_run: true

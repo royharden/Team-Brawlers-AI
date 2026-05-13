@@ -1,0 +1,22 @@
+# codespell ignore-words for Team-Brawlers-AI.
+#
+# Words listed here will NOT be flagged as typos. Keep alphabetised.
+# Group with a comment header so future agents understand WHY a word
+# is here. Adapted from EMR-SO/openemr/.codespell-ignore-words.txt
+# convention.
+#
+# Adding a new word: confirm it's a legitimate domain term in this
+# adversarial-AI-security platform, not an accidental typo. If unsure,
+# check the source line and decide whether the prose should change.
+
+# Adversarial AI security + Pythonic shorthand
+ans
+assertIn
+crate
+nd
+strat
+te
+ths
+
+# Medical / clinical EHR vocabulary (target is OpenEMR — a Clinical Co-Pilot)
+ehr

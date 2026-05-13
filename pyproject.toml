@@ -65,10 +65,37 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
-ignore = ["E501"]
+# E501  : long lines — many master-plan refs and CATALOG descriptions are long.
+# RUF001/2/3 : "ambiguous Unicode" rules. This is an ADVERSARIAL AI SECURITY
+#              platform where Unicode homographs are part of the attack surface
+#              (see tests/unit/observability/test_scrubber.py homograph cases),
+#              and the codebase intentionally uses math notation (× ÷ −),
+#              Greek letters (α for alpha-thresholds), and en/em dashes in
+#              docstrings. Forcing ASCII would defeat both the test data and
+#              the prose.
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B011"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Calls that are SAFE in argument defaults (B008 won't flag them).
+# fastapi.Depends is the canonical FastAPI DI pattern — Depends() MUST sit in
+# the default to bind the dependency-injection graph at import time.
+# typer.Argument / typer.Option are the same idea for the CLI layer.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Security",
+    "typer.Argument",
+    "typer.Option",
+]
 
 [tool.mypy]
 python_version = "3.11"
@@ -87,3 +114,14 @@ markers = [
     "eval: uses evals/ fixtures",
     "live: requires deployed target — opt-in only",
 ]
+
+[tool.codespell]
+# Skip cached/generated/vendored content + the cloned OpenEMR target.
+# Also skip pyproject.toml itself (this section's prose mentions words that
+# would self-trigger if scanned).
+skip = "*.lock,*.min.js,*.min.css,openemr/*,evals/cache/*,tests/CATALOG.md,.git/*,.mypy_cache/*,.ruff_cache/*,.pytest_cache/*,__pycache__/*"
+# Domain terms live in a SEPARATE file so codespell doesn't scan its own
+# ignore list (the OpenEMR ouroboros trap). Add domain terms there, not here.
+ignore-words = ".codespell-ignore-words.txt"
+# Confidence threshold; default 2 matches OpenEMR's setting.
+quiet-level = 2

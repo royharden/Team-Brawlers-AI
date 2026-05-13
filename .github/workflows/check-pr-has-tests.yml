@@ -1,0 +1,50 @@
+name: check-pr-has-tests
+
+# Adapted from EMR-SO/openemr/.github/workflows/check-pr-has-tests.yml.
+# Enforces the testing-discipline contract: a PR that touches platform code
+# MUST add at least one new test_*.py or evals/cases/**/*.json|yaml file.
+# Refactor PRs without behavior change can override with the
+# `allow-refactor` label on the PR.
+#
+# See the `testing-discipline-team-brawlers-ai` skill for the contract.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  has-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need both PR head + the base ref so git diff can compute the diff.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine refs
+        id: refs
+        run: |
+          echo "base=origin/${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+          echo "head=HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Honour allow-refactor label
+        id: refactor
+        run: |
+          labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          if echo "$labels" | grep -q '"allow-refactor"'; then
+            echo "flag=--allow-refactor" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run test-presence gate
+        run: |
+          python scripts/check_pr_has_tests.py \
+            --base "${{ steps.refs.outputs.base }}" \
+            --head "${{ steps.refs.outputs.head }}" \
+            ${{ steps.refactor.outputs.flag }}
