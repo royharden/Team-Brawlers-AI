@@ -14,6 +14,8 @@ the contract this catalog enforces.
 | `tests/integration/test_db_smoke.py::test_init_db_creates_all_tables` | `integration` | `init_db()` creates every Phase-1 table (12 tables — master plan §5.2). |
 | `tests/integration/test_db_smoke.py::test_regression_case_requires_what_bug_this_catches` | `integration` | Empty `what_bug_this_catches` must violate the CHECK constraint. |
 | `tests/integration/test_db_smoke.py::test_run_insert_roundtrip` | `integration` | Smoke: a Run row can be inserted + queried (sanity). |
+| `tests/integration/test_full_multi_agent_loop_live.py::test_full_multi_agent_loop_one_step` | `integration` | One orchestrator.step(batch_size=1) round-trip. |
+| `tests/integration/test_sidecar_direct_live.py::test_live_sidecar_round_trip_no_phi_leak` | `integration` | Fire one attack at the running sidecar; verify response wiring + PHI-free trace. |
 | `tests/unit/api/test_routes_approval.py::test_approval_queue_lists_jsonl` | `unit` | `/v1/approval/queue` reads `data/notifier_queue.jsonl` line-by-line. |
 | `tests/unit/api/test_routes_approval.py::test_approval_approve_returns_501` | `unit` | `POST /v1/approval/{vr_id}/approve` is a Phase-8 stub returning 501. |
 | `tests/unit/api/test_routes_approval.py::test_approval_reject_returns_501` | `unit` | `POST /v1/approval/{vr_id}/reject` is a Phase-8 stub returning 501. |
@@ -193,6 +195,24 @@ the contract this catalog enforces.
 | `tests/unit/judge/test_seed_catalog_schema.py::test_every_individual_seed_file_validates` | `unit` | Each YAML under evals/cases/<category>/ must validate as a single seed case. |
 | `tests/unit/judge/test_seed_catalog_schema.py::test_every_catalog_entry_validates` | `unit` | Each entry inside `seeds:` in every catalog YAML must validate. |
 | `tests/unit/judge/test_seed_catalog_schema.py::test_individual_seeds_and_catalog_entries_match` | `unit` | The individual per-seed YAMLs and the catalog entries must carry the same set |
+| `tests/unit/llm/test_anthropic_clients.py::test_haiku_quick_verdict_happy_path_passed` | `unit` | (no docstring) test_haiku_quick_verdict_happy_path_passed |
+| `tests/unit/llm/test_anthropic_clients.py::test_haiku_quick_verdict_happy_path_failed` | `unit` | (no docstring) test_haiku_quick_verdict_happy_path_failed |
+| `tests/unit/llm/test_anthropic_clients.py::test_haiku_quick_verdict_handles_malformed_json` | `unit` | Non-JSON response → abstain envelope, no exception. |
+| `tests/unit/llm/test_anthropic_clients.py::test_haiku_quick_verdict_handles_sdk_exception` | `unit` | Network/rate-limit raises during create → abstain envelope, no propagation. |
+| `tests/unit/llm/test_anthropic_clients.py::test_haiku_quick_verdict_strips_json_fence` | `unit` | Model occasionally adds ```json ... ``` fence; we tolerate it. |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_happy_path_passed` | `unit` | (no docstring) test_sonnet_judge_happy_path_passed |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_happy_path_failed` | `unit` | (no docstring) test_sonnet_judge_happy_path_failed |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_raises_on_empty` | `unit` | (no docstring) test_sonnet_judge_raises_on_empty |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_raises_on_non_json` | `unit` | (no docstring) test_sonnet_judge_raises_on_non_json |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_uses_judge_system_prompt` | `unit` | Confirms we don't accidentally drop the JUDGE_SYSTEM_PROMPT contract. |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_doc_returns_text` | `unit` | (no docstring) test_sonnet_doc_returns_text |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_doc_returns_empty_on_failure` | `unit` | SDK error → empty string; DocumentationAgent falls back to template-only. |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_happy_path_selections` | `unit` | (no docstring) test_sonnet_planner_happy_path_selections |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_returns_halt_reasons` | `unit` | (no docstring) test_sonnet_planner_returns_halt_reasons |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_handles_non_json` | `unit` | (no docstring) test_sonnet_planner_handles_non_json |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_handles_sdk_exception` | `unit` | (no docstring) test_sonnet_planner_handles_sdk_exception |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_strips_fence` | `unit` | (no docstring) test_sonnet_planner_strips_fence |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_ignores_malformed_selection_items` | `unit` | Mixed shape: dict + string + dict-with-missing-keys. Survivors only. |
 | `tests/unit/observability/test_dashboards.py::test_aggregate_run_costs_rolls_up_by_role` | `unit` | `aggregate_run_costs` returns total + n_calls + per-role Decimal sums (master plan §15). |
 | `tests/unit/observability/test_dashboards.py::test_coverage_pct_handles_sparse_matrix` | `unit` | `coverage_pct` denominator is always 72; sparse inputs treat missing cells as uncovered. |
 | `tests/unit/observability/test_dashboards.py::test_recent_fingerprints_orders_distinct_most_recent_first` | `unit` | `recent_fingerprints` returns distinct fingerprints ordered most-recent first (no duplicates from repeat snapshots). |
@@ -295,7 +315,7 @@ the contract this catalog enforces.
 | `tests/unit/redteam/test_openrouter_client.py::test_implements_redteam_client_protocol` | `unit` | Structural conformance check against the Protocol. |
 | `tests/unit/redteam/test_provider_isolation.py::test_only_sanctioned_module_imports_sdk` | `unit` | Every module under agentforge/redteam/ must NOT import the forbidden |
 | `tests/unit/redteam/test_provider_isolation.py::test_sanctioned_module_actually_imports_its_sdk` | `unit` | Sanity-check the inverse: the sanctioned module DOES import the SDK |
-| `tests/unit/redteam/test_seed_catalog.py::test_all_returns_twelve_committed_seeds` | `unit` | `SeedCatalog.all()` returns the 12 committed seeds across the three categories. |
+| `tests/unit/redteam/test_seed_catalog.py::test_all_returns_committed_seeds_across_every_category` | `unit` | `SeedCatalog.all()` returns every committed seed across all 9 category YAMLs. |
 | `tests/unit/redteam/test_seed_catalog.py::test_by_category_returns_only_in_category_seeds` | `unit` | `SeedCatalog.by_category` returns only the requested category and `[]` for unknown. |
 | `tests/unit/redteam/test_seed_catalog.py::test_by_id_returns_the_matching_seed_or_raises` | `unit` | `SeedCatalog.by_id` returns the matching seed dict or raises `KeyError`. |
 | `tests/unit/regression/test_case_schema.py::test_regression_case_round_trip` | `unit` | Write + read JSON must reconstruct a structurally identical case. |
@@ -335,6 +355,18 @@ the contract this catalog enforces.
 | `tests/unit/target_adapter/test_pdf_factory.py::test_lab_panel_renders_each_row` | `unit` | Every lab panel row must appear in the visible text by name + value + unit. |
 | `tests/unit/target_adapter/test_pdf_factory.py::test_off_page_text_not_visible_but_extractable` | `unit` | Off-page placement renders text at negative y; humans can't see it |
 | `tests/unit/target_adapter/test_pdf_factory.py::test_factory_raises_if_extraction_loses_injection` | `unit` | Simulate a rendering pipeline that drops the injection: monkeypatch |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_happy_path_returns_normalized_response` | `unit` | Sidecar returns 200 JSON; adapter returns AdapterResponse with parsed body. |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_happy_path_body_includes_required_sidecar_fields` | `unit` | Request body matches the sidecar's _CopilotAnswerRequest schema. |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_long_prompt_truncated_to_500_chars` | `unit` | Sidecar caps question at 500 chars; adapter truncates before sending. |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_shared_secret_header_sent_when_set` | `unit` | (no docstring) test_shared_secret_header_sent_when_set |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_shared_secret_header_omitted_when_empty` | `unit` | (no docstring) test_shared_secret_header_omitted_when_empty |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_off_allowlist_host_rejected_before_network` | `unit` | Adapter must reject before any HTTP. handler raises if called. |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_http_4xx_sets_error_field` | `unit` | (no docstring) test_http_4xx_sets_error_field |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_timeout_returns_timeout_envelope` | `unit` | (no docstring) test_timeout_returns_timeout_envelope |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_connection_refused_returns_request_error_envelope` | `unit` | (no docstring) test_connection_refused_returns_request_error_envelope |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_phi_in_response_body_scrubbed` | `unit` | If the sidecar returns a string matching a PHI pattern (SSN), the adapter |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_describe_action_includes_url` | `unit` | (no docstring) test_describe_action_includes_url |
+| `tests/unit/target_adapter/test_sidecar_direct.py::test_adapter_name_is_sidecar_direct` | `unit` | (no docstring) test_adapter_name_is_sidecar_direct |
 | `tests/unit/test_cli.py::test_smoke_invokes_script` | `unit` | `tb smoke` invokes the correct platform script via subprocess. |
 | `tests/unit/test_cli.py::test_regress_mock_path_runs_cases` | `unit` | `tb regress --mock=<dir>` exits 0 when the floor is permissive. |
 | `tests/unit/test_cli.py::test_regress_case_path_runs_single_case` | `unit` | `tb regress --case VR-0001 --mock=<dir>` runs exactly one case. |
