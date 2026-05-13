@@ -51,6 +51,9 @@ class AgentForgeClient:
     def get_dashboard(self) -> dict[str, Any]:
         return self._get_json("/v1/dashboard")
 
+    def get_coverage_cells(self) -> dict[str, Any]:
+        return self._get_json("/v1/coverage/cells")
+
     # --- runs ------------------------------------------------------------
 
     def list_runs(self, limit: int = 50, offset: int = 0) -> dict[str, Any]:

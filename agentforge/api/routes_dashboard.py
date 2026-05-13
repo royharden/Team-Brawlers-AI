@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from agentforge.api.deps import get_session
 from agentforge.api.responses import (
+    CoverageCellOut,
+    CoverageCellsResponse,
     CoverageSummary,
     DashboardResponse,
     DashboardTotals,
@@ -110,3 +112,30 @@ def get_dashboard(
         latest_fingerprint=latest_fingerprint,
         judge_floor_met=_judge_floor_met(),
     )
+
+
+@router.get("/coverage/cells", response_model=CoverageCellsResponse)
+def get_coverage_cells(
+    session: Session = Depends(get_session),
+) -> CoverageCellsResponse:
+    """Per-cell coverage detail for the Coverage UI heatmap (sub-plan Next03 §3.1).
+
+    Returns one row per ``coverage_cells`` table entry — currently bounded at
+    72 (8 categories × 9 strategies). The dashboard endpoint only reports the
+    aggregate covered/total/pct; this endpoint feeds the drill-down view.
+    """
+    rows = session.query(CoverageCellRow).all()
+    cells = [
+        CoverageCellOut(
+            category=r.category,
+            strategy=r.strategy,
+            attempts=int(r.attempts or 0),
+            passes=int(r.passes or 0),
+            failures=int(r.failures or 0),
+            last_pass_rate=float(r.last_pass_rate or 0.0),
+            last_attempt_at=r.last_attempt_at,
+        )
+        for r in rows
+    ]
+    covered = sum(1 for c in cells if c.attempts > 0)
+    return CoverageCellsResponse(cells=cells, total_cells=72, covered_cells=covered)

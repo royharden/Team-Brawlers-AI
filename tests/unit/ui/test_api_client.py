@@ -60,6 +60,24 @@ def test_dashboard_runs_reports_paths() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_get_coverage_cells_hits_correct_path() -> None:
+    """`AgentForgeClient.get_coverage_cells()` GETs `/v1/coverage/cells` and
+    round-trips the payload (sub-plan Next03 §3.1)."""
+    payload = {
+        "cells": [{"category": "prompt_injection", "strategy": "single_turn", "attempts": 3}],
+        "total_cells": 72,
+        "covered_cells": 1,
+    }
+    route = respx.get(f"{BASE_URL}/v1/coverage/cells").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+    c = AgentForgeClient(base_url=BASE_URL)
+    assert c.get_coverage_cells() == payload
+    assert route.called
+
+
+@pytest.mark.unit
+@respx.mock
 def test_cost_regression_lineage_delta_approval_paths() -> None:
     """UI client hits the correct paths for cost / regression / lineage / delta / approval endpoints (respx-mocked)."""
     respx.get(f"{BASE_URL}/v1/cost/today").mock(

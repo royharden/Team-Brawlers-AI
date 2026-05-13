@@ -40,6 +40,22 @@ class CoverageSummary(BaseModel):
     pct: float = 0.0
 
 
+class CoverageCellOut(BaseModel):
+    category: str
+    strategy: str
+    attempts: int = 0
+    passes: int = 0
+    failures: int = 0
+    last_pass_rate: float = 0.0
+    last_attempt_at: datetime | None = None
+
+
+class CoverageCellsResponse(BaseModel):
+    cells: list[CoverageCellOut] = Field(default_factory=list)
+    total_cells: int = 72
+    covered_cells: int = 0
+
+
 class LatestRun(BaseModel):
     id: str
     started_at: datetime | None = None
@@ -201,6 +217,8 @@ __all__ = [
     "DashboardResponse",
     "DashboardTotals",
     "CoverageSummary",
+    "CoverageCellOut",
+    "CoverageCellsResponse",
     "LatestRun",
     "RunRow",
     "RunListResponse",

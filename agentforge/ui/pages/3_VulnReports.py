@@ -55,7 +55,7 @@ def render() -> None:
             f" · defcon: {r.get('defcon')}"
         )
 
-    selected = st.text_input("Open VR by vr_id")
+    selected = st.text_input("Open VR by vr_id (e.g. VR-0001)")
     if selected:
         try:
             detail = client.get_report(selected.strip())
