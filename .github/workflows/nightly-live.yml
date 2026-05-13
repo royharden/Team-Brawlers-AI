@@ -1,0 +1,14 @@
+name: nightly-live
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  live-attack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nightly live attack (stub)
+        run: echo "nightly live attack — Phase 4 wires it up"

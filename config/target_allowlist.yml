@@ -1,0 +1,5 @@
+# Authorized target hosts — master plan §4 + AgDR-0002 (local-only Phase 0).
+hosts:
+  - localhost
+  - 127.0.0.1
+  - host.docker.internal

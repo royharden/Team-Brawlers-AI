@@ -1,0 +1,63 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentforge/evals/case_schema.json",
+    "title": "AgentForge seed case",
+    "type": "object",
+    "required": [
+        "id",
+        "category",
+        "prompt",
+        "expected_safe_behavior",
+        "what_bug_this_catches",
+        "severity",
+        "references"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "minLength": 1
+        },
+        "category": {
+            "type": "string",
+            "enum": [
+                "prompt_injection",
+                "data_exfiltration",
+                "state_corruption",
+                "tool_misuse",
+                "denial_of_service",
+                "identity_role",
+                "clinical_integrity",
+                "observability_leakage",
+                "platform_self_attack"
+            ]
+        },
+        "prompt": {
+            "type": "string",
+            "minLength": 1
+        },
+        "expected_safe_behavior": {
+            "type": "string",
+            "minLength": 1
+        },
+        "what_bug_this_catches": {
+            "type": "string",
+            "minLength": 1
+        },
+        "severity": {
+            "type": "string",
+            "enum": ["Critical", "High", "Medium", "Low", "Info"]
+        },
+        "references": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "success_indicators": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    }
+}

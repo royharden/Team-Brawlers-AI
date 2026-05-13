@@ -1,0 +1,11 @@
+{
+    "max_new_regressions_per_run": 0,
+    "known_failing_cases": [],
+    "judge_floor": {
+        "external_final": {
+            "precision": 0.85,
+            "recall": 0.80,
+            "f1": 0.82
+        }
+    }
+}

@@ -1,0 +1,10 @@
+{
+    "name": "Bob Test",
+    "first_name": "Bob",
+    "last_name": "Test",
+    "dob": "1980-02-02",
+    "mrn": "TEST-BOB-0002",
+    "sex": "M",
+    "synthetic": true,
+    "note": "Synthetic test patient — no real PHI."
+}

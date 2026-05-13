@@ -1,0 +1,16 @@
+name: eval-gate
+
+on:
+  pull_request:
+    paths:
+      - "agentforge/**"
+      - "evals/**"
+      - ".github/workflows/eval-gate.yml"
+
+jobs:
+  regression-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regression gate (stub)
+        run: echo "regression gate — Phase 3 wires it up"

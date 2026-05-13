@@ -1,0 +1,45 @@
+{# HTML vulnerability report — master plan §8.4. Phase 3 lands the full template. #}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ vr_id }} — {{ title }}</title>
+</head>
+<body>
+    <h1>{{ vr_id }} — {{ title }}</h1>
+    <p><strong>Severity:</strong> {{ severity }}</p>
+    <p><strong>DEFCON:</strong> {{ defcon }}</p>
+    <p><strong>Safety score:</strong> {{ safety_score }}</p>
+    <p><strong>OWASP LLM Top 10:</strong> {{ owasp_llm10 }}</p>
+    <p><strong>OWASP Agentic Top 10:</strong> {{ owasp_agentic }}</p>
+    <p><strong>AVID:</strong> {{ avid }}</p>
+    <p><strong>NIST AI RMF:</strong> {{ nist_ai_rmf }}</p>
+    <p><strong>Vulnerability class:</strong> {{ vulnerability_class }}</p>
+    <p><strong>Status:</strong> {{ status }}</p>
+    <p><strong>Target fingerprint (when discovered):</strong> {{ target_fingerprint }}</p>
+
+    <h2>Clinical Impact</h2>
+    <p>{{ clinical_impact }}</p>
+
+    <h2>Minimal Reproducer</h2>
+    <pre>{{ minimal_reproducer }}</pre>
+
+    <h2>Observed Behavior</h2>
+    <p>{{ observed_behavior }}</p>
+
+    <h2>Expected Behavior</h2>
+    <p>{{ expected_behavior }}</p>
+
+    <h2>Recommended Remediation</h2>
+    <p>{{ recommended_remediation }}</p>
+
+    <h2>Evidence</h2>
+    <pre>{{ evidence }}</pre>
+
+    <h2>Validation</h2>
+    <p>{{ validation }}</p>
+
+    <h2>Residual Risk</h2>
+    <p>{{ residual_risk }}</p>
+</body>
+</html>
