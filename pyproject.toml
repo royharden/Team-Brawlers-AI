@@ -40,6 +40,7 @@ mypy = "^1.13"
 ipython = "^8.30"
 hypothesis = "^6.115"
 respx = "^0.21"
+jsonschema = "^4.23"
 
 [tool.poetry.extras]
 browser = ["playwright"]

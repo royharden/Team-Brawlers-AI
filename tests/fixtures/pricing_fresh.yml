@@ -1,0 +1,17 @@
+# Test fixture — fresh pricing snapshot.
+# `retrieved_on` is patched via the `today` parameter in tests so this file
+# stays stable in git over time.
+retrieved_on: "2026-05-01"
+
+anthropic:
+  claude-sonnet-4-6:
+    input_per_million: 3.00
+    output_per_million: 15.00
+  claude-haiku-4-6:
+    input_per_million: 1.00
+    output_per_million: 5.00
+
+fireworks:
+  accounts/fireworks/models/dolphin-2-9-2-qwen2-72b:
+    input_per_million: 0.90
+    output_per_million: 0.90
