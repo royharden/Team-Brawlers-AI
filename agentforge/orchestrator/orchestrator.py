@@ -64,6 +64,7 @@ from agentforge.orchestrator.prompts import (
     ORCHESTRATOR_SYSTEM_PROMPT,
     ORCHESTRATOR_USER_PROMPT_TEMPLATE,
 )
+from agentforge.pricing import PricingTable
 from agentforge.redteam.agent import RedTeamAgent
 
 # ---------------------------------------------------------------------- types
@@ -164,6 +165,8 @@ class OrchestratorAgent:
         open_findings: Iterable[dict[str, Any]] | None = None,
         session_factory: Callable[[], Session] | None = None,
         run_type: str = "exploratory",
+        pricing: PricingTable | None = None,
+        usage_sources: dict[str, Any] | None = None,
     ) -> None:
         self._redteam = redteam
         self._target_adapter = target_adapter
@@ -183,6 +186,15 @@ class OrchestratorAgent:
         self._session_factory = session_factory
         self._run_type = run_type
         self._run_persisted = False
+        # Sub-plan Next03 §4.3 (AgDR-0021): when both pricing and usage_sources
+        # are injected, the cost_ledger persister reads real per-call token
+        # counts from each wrapper's `last_usage` and computes cost from
+        # pricing.yml. Falls back to the class-level _COST_ESTIMATE_*
+        # constants when either is missing or last_usage is None.
+        # usage_sources keyed by agent_role: "internal_judge", "external_judge",
+        # "documentation", "orchestrator_planner".
+        self._pricing = pricing
+        self._usage_sources: dict[str, Any] = dict(usage_sources or {})
 
     # ------------------------------------------------------------------ plan
 
@@ -657,14 +669,34 @@ class OrchestratorAgent:
     ) -> None:
         """Insert one ``cost_ledger`` row.
 
-        Per-call token counts default to 0 because the four Anthropic
-        wrappers do not yet surface ``response.usage`` (AgDR-0016 follow-on
-        #3). The ``cost_usd`` values come from class-level estimates plus
-        the adapter's self-reported cost (when present) -- BudgetGuard
-        remains the binding cost ceiling regardless.
+        Sub-plan Next03 §4.3 (AgDR-0021): when both ``self._pricing`` and
+        ``self._usage_sources[agent_role]`` are wired AND the wrapper's
+        ``last_usage`` is set, this replaces the caller-supplied
+        ``cost_usd`` / ``input_tokens`` / ``output_tokens`` with real
+        per-call values computed from ``config/pricing.yml``. Otherwise
+        falls back to the caller-supplied class-level estimates so existing
+        tests + memory-only mode behave identically to AgDR-0017.
         """
         if self._session_factory is None:
             return
+
+        # Try to upgrade to real-token pricing (AgDR-0021).
+        usage_src = self._usage_sources.get(agent_role)
+        if usage_src is not None and self._pricing is not None:
+            usage = getattr(usage_src, "last_usage", None)
+            if usage is not None:
+                with contextlib.suppress(Exception):
+                    real_cost = self._pricing.cost_for_call(
+                        provider=provider,
+                        model=getattr(usage, "model", model),
+                        input_tokens=int(getattr(usage, "input_tokens", 0)),
+                        output_tokens=int(getattr(usage, "output_tokens", 0)),
+                    )
+                    cost_usd = real_cost
+                    input_tokens = int(getattr(usage, "input_tokens", 0))
+                    output_tokens = int(getattr(usage, "output_tokens", 0))
+                    model = getattr(usage, "model", model)
+
         session = self._session_factory()
         try:
             row = CostLedgerEntryRow(

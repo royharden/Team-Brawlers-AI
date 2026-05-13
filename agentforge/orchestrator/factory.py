@@ -52,6 +52,7 @@ from agentforge.memory.repo import MemoryRepo
 from agentforge.orchestrator.budget_guard import BudgetGuard
 from agentforge.orchestrator.coverage import CoverageMatrix
 from agentforge.orchestrator.orchestrator import OrchestratorAgent, TargetExecutor
+from agentforge.pricing import PricingTable
 from agentforge.redteam.agent import RedTeamAgent
 from agentforge.redteam.anthropic_client import RedTeamAnthropicClient
 from agentforge.redteam.lineage import AttackLineage
@@ -252,6 +253,23 @@ def build_orchestrator(
         else None
     )
 
+    # ---- Pricing table for real-token cost (sub-plan Next03 §4.3, AgDR-0021)
+    pricing_path = _project_root() / "config" / "pricing.yml"
+    pricing = PricingTable.from_yaml(pricing_path) if pricing_path.is_file() else None
+
+    # Map agent_role → wrapper-with-.last_usage. Red Team uses a separate
+    # OpenRouter client and its cost is $0 on the :free tier; we leave it
+    # to the class-level estimate for now.
+    usage_sources: dict[str, object] = {}
+    if haiku_client is not None:
+        usage_sources["internal_judge"] = haiku_client
+    if sonnet_judge_client is not None:
+        usage_sources["external_judge"] = sonnet_judge_client
+    if sonnet_doc_client is not None:
+        usage_sources["documentation"] = sonnet_doc_client
+    if sonnet_planner_client is not None:
+        usage_sources["orchestrator_planner"] = sonnet_planner_client
+
     return OrchestratorAgent(
         redteam=redteam,
         target_adapter=target_adapter,
@@ -268,6 +286,9 @@ def build_orchestrator(
         # AgDR-0017: wire the persistence layer so step() updates the dashboard.
         session_factory=session_factory,
         run_type=run_type,
+        # AgDR-0021: real per-call token-cost path.
+        pricing=pricing,
+        usage_sources=usage_sources,
     )
 
 

@@ -344,3 +344,126 @@ def test_persistence_idempotent_on_second_step(session_factory: sessionmaker[Ses
 
     assert len(runs) == 1  # single run id, persisted once
     assert len(jobs) == 2  # one job per step
+
+
+# --------------------------------------------------------------------------- sub-plan Next03 §4.3 (AgDR-0021)
+#
+# Real-token-cost path: when both `pricing` and `usage_sources[role].last_usage`
+# are wired, _persist_cost_ledger uses tokens × pricing.yml; otherwise falls
+# back to the caller-supplied class-level estimate (preserves AgDR-0017
+# behavior).
+
+
+class _FakeWrapperWithUsage:
+    """A stand-in for an Anthropic wrapper that exposes ``last_usage``."""
+
+    def __init__(self, input_tokens: int, output_tokens: int, model: str) -> None:
+        from agentforge.llm.anthropic_clients import TokenUsage
+
+        self.last_usage = TokenUsage(
+            input_tokens=input_tokens, output_tokens=output_tokens, model=model
+        )
+
+
+@pytest.mark.unit
+def test_cost_ledger_uses_real_tokens_when_wrapper_reports_them(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """If `usage_sources[role].last_usage` is set + a PricingTable is wired,
+    the cost_ledger row carries real input_tokens / output_tokens and cost
+    computed from pricing.yml (sub-plan Next03 §4.3)."""
+    from agentforge.pricing import PricingTable
+
+    pricing_path = (
+        __import__("pathlib").Path(__file__).resolve().parents[3] / "config" / "pricing.yml"
+    )
+    pricing = PricingTable.from_yaml(pricing_path)
+
+    # Pre-populate the wrappers' last_usage as if each had just been called.
+    haiku = _FakeWrapperWithUsage(1000, 100, "claude-haiku-4-6")
+    judge = _FakeWrapperWithUsage(1500, 200, "claude-sonnet-4-6")
+
+    orch = _build_orchestrator(session_factory)
+    orch._pricing = pricing
+    orch._usage_sources = {"internal_judge": haiku, "external_judge": judge}
+    orch.step(batch_size=1)
+
+    s = session_factory()
+    rows = {r.agent_role: r for r in s.query(CostLedgerEntry).all()}
+    s.close()
+
+    # Haiku: 1000 in × $1/M + 100 out × $5/M = 0.001 + 0.0005 = 0.0015
+    assert "internal_judge" in rows
+    haiku_row = rows["internal_judge"]
+    assert haiku_row.input_tokens == 1000
+    assert haiku_row.output_tokens == 100
+    assert Decimal(str(haiku_row.cost_usd)) == pytest.approx(Decimal("0.0015"))
+
+    # Sonnet: 1500 in × $3/M + 200 out × $15/M = 0.0045 + 0.003 = 0.0075
+    assert "external_judge" in rows
+    judge_row = rows["external_judge"]
+    assert judge_row.input_tokens == 1500
+    assert judge_row.output_tokens == 200
+    assert Decimal(str(judge_row.cost_usd)) == pytest.approx(Decimal("0.0075"))
+
+
+@pytest.mark.unit
+def test_cost_ledger_falls_back_to_class_estimate_when_usage_missing(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """No usage_sources + no pricing → behave exactly as AgDR-0017 did:
+    cost_ledger rows carry the class-level _COST_ESTIMATE_* fixed amounts
+    with input/output_tokens = 0 (sub-plan Next03 §4.3)."""
+    orch = _build_orchestrator(session_factory)
+    # Confirm defaults — pricing and usage_sources are None/{} by default.
+    assert orch._pricing is None
+    assert orch._usage_sources == {}
+
+    orch.step(batch_size=1)
+
+    s = session_factory()
+    rows = {r.agent_role: r for r in s.query(CostLedgerEntry).all()}
+    s.close()
+
+    # External Judge falls back to the class-level estimate ($0.024) and
+    # input/output_tokens stay at 0.
+    assert rows["external_judge"].input_tokens == 0
+    assert rows["external_judge"].output_tokens == 0
+    assert Decimal(str(rows["external_judge"].cost_usd)) == Decimal("0.024000")
+
+
+@pytest.mark.unit
+def test_end_run_total_cost_reflects_real_token_pricing(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """`end_run()` sums cost_ledger.cost_usd into Run.total_cost_usd; with
+    real-token pricing the total reflects the pricing-derived amounts
+    (sub-plan Next03 §4.3)."""
+    from agentforge.pricing import PricingTable
+
+    pricing_path = (
+        __import__("pathlib").Path(__file__).resolve().parents[3] / "config" / "pricing.yml"
+    )
+    pricing = PricingTable.from_yaml(pricing_path)
+
+    haiku = _FakeWrapperWithUsage(500, 50, "claude-haiku-4-6")
+    orch = _build_orchestrator(session_factory)
+    orch._pricing = pricing
+    orch._usage_sources = {"internal_judge": haiku}
+    orch.step(batch_size=1)
+    orch.end_run(status="completed")
+
+    s = session_factory()
+    run = s.query(Run).one()
+    expected_total = sum(
+        (Decimal(str(r.cost_usd)) for r in s.query(CostLedgerEntry).all()), Decimal("0")
+    )
+    s.close()
+    assert Decimal(str(run.total_cost_usd)) == expected_total
+    # And the internal_judge row is the pricing-derived 0.00075 not the
+    # class-level $0.002400 estimate.
+    s2 = session_factory()
+    ij_row = s2.query(CostLedgerEntry).filter(CostLedgerEntry.agent_role == "internal_judge").one()
+    s2.close()
+    # Haiku: 500 in × $1/M + 50 out × $5/M = 0.0005 + 0.00025 = 0.00075
+    assert Decimal(str(ij_row.cost_usd)) == pytest.approx(Decimal("0.00075"))
