@@ -1,45 +1,88 @@
-{# HTML vulnerability report — master plan §8.4. Phase 3 lands the full template. #}
+{# HTML vulnerability report — master plan §8.4. Mirror of the markdown template.
+   Jinja2 autoescape MUST be enabled by the renderer. #}
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>{{ vr_id }} — {{ title }}</title>
+    <title>{{ vr.vr_id }} — {{ category | title }} — {{ severity }}</title>
 </head>
 <body>
-    <h1>{{ vr_id }} — {{ title }}</h1>
-    <p><strong>Severity:</strong> {{ severity }}</p>
-    <p><strong>DEFCON:</strong> {{ defcon }}</p>
-    <p><strong>Safety score:</strong> {{ safety_score }}</p>
-    <p><strong>OWASP LLM Top 10:</strong> {{ owasp_llm10 }}</p>
-    <p><strong>OWASP Agentic Top 10:</strong> {{ owasp_agentic }}</p>
-    <p><strong>AVID:</strong> {{ avid }}</p>
-    <p><strong>NIST AI RMF:</strong> {{ nist_ai_rmf }}</p>
-    <p><strong>Vulnerability class:</strong> {{ vulnerability_class }}</p>
-    <p><strong>Status:</strong> {{ status }}</p>
-    <p><strong>Target fingerprint (when discovered):</strong> {{ target_fingerprint }}</p>
+    <h1>{{ vr.vr_id }} — {{ category | title }} — {{ severity }}</h1>
 
-    <h2>Clinical Impact</h2>
-    <p>{{ clinical_impact }}</p>
+    <section id="metadata">
+        <table>
+            <thead><tr><th>Field</th><th>Value</th></tr></thead>
+            <tbody>
+                <tr><td>Severity</td><td>{{ vr.severity }}</td></tr>
+                <tr><td>DEFCON</td><td>{{ vr.defcon }} (1=most severe, 5=least)</td></tr>
+                <tr><td>Safety score</td><td>{{ vr.safety_score_0_100 }}/100</td></tr>
+                <tr><td>OWASP LLM Top 10</td><td>{{ vr.owasp_llm_top_10 | join(", ") or "—" }}</td></tr>
+                <tr><td>OWASP Agentic Top 10</td><td>{{ vr.owasp_agentic_top_10 | join(", ") or "—" }}</td></tr>
+                <tr><td>AVID</td><td>{{ vr.avid | join(", ") or "—" }}</td></tr>
+                <tr><td>NIST AI RMF</td><td>{{ vr.nist_ai_rmf | join(", ") or "—" }}</td></tr>
+                <tr><td>Vulnerability class</td><td>VC-{{ vr.vulnerability_class_id }}</td></tr>
+                <tr><td>Status</td><td>{{ vr.status }}</td></tr>
+                <tr><td>Target fingerprint at discovery</td><td><code>{{ vr.target_fingerprint_at_discovery }}</code></td></tr>
+                <tr><td>Run</td><td><code>{{ vr.run_id }}</code></td></tr>
+            </tbody>
+        </table>
+    </section>
 
-    <h2>Minimal Reproducer</h2>
-    <pre>{{ minimal_reproducer }}</pre>
+    <section id="clinical-impact">
+        <h2>Clinical Impact</h2>
+        <p>{{ clinical_impact }}</p>
+    </section>
 
-    <h2>Observed Behavior</h2>
-    <p>{{ observed_behavior }}</p>
+    <section id="minimal-reproducer">
+        <h2>Minimal Reproducer</h2>
+        <pre>HTTP request
+{{ http_block }}</pre>
+        <p>Replay:</p>
+        <pre>tb regress --case {{ vr.vr_id }}</pre>
+    </section>
 
-    <h2>Expected Behavior</h2>
-    <p>{{ expected_behavior }}</p>
+    <section id="observed-behavior">
+        <h2>Observed Behavior</h2>
+        <p>{{ observed }}</p>
+    </section>
 
-    <h2>Recommended Remediation</h2>
-    <p>{{ recommended_remediation }}</p>
+    <section id="expected-behavior">
+        <h2>Expected Behavior</h2>
+        <p>{{ expected }}</p>
+    </section>
 
-    <h2>Evidence</h2>
-    <pre>{{ evidence }}</pre>
+    <section id="recommended-remediation">
+        <h2>Recommended Remediation</h2>
+        <ul>
+        {% for bullet in remediation %}<li>{{ bullet }}</li>
+        {% endfor %}
+        </ul>
+    </section>
 
-    <h2>Validation</h2>
-    <p>{{ validation }}</p>
+    <section id="evidence">
+        <h2>Evidence</h2>
+        <table>
+            <thead><tr><th>Item</th><th>Value</th></tr></thead>
+            <tbody>
+                <tr><td>trace_id</td><td><code>{{ trace_id }}</code></td></tr>
+                <tr><td>attempt_id</td><td><code>{{ attempt_id }}</code></td></tr>
+                <tr><td>judge verdict</td><td><code>{{ judge_verdict_summary }}</code></td></tr>
+            </tbody>
+        </table>
+    </section>
 
-    <h2>Residual Risk</h2>
-    <p>{{ residual_risk }}</p>
+    <section id="validation">
+        <h2>Validation</h2>
+        <ul>
+            <li>Regression case: <code>evals/regression/{{ vr.vr_id }}.json</code></li>
+            <li>Replay command: <code>tb regress --case {{ vr.vr_id }}</code></li>
+            <li>Validation history: <em>(empty until first replay)</em></li>
+        </ul>
+    </section>
+
+    <section id="residual-risk">
+        <h2>Residual Risk</h2>
+        <p>{{ residual_risk }}</p>
+    </section>
 </body>
 </html>

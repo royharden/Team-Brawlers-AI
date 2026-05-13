@@ -1,37 +1,56 @@
-{# Vulnerability report — master plan §8.4. Phase 3 lands the full template. #}
-# {{ vr_id }} — {{ title }}
+{# Vulnerability report — master plan §8.4. Fixed-order sections. #}
+# {{ vr.vr_id }} — {{ category | title }} — {{ severity }}
 
-**Severity:** {{ severity }}
-**DEFCON:** {{ defcon }}
-**Safety score:** {{ safety_score }}
-**OWASP LLM Top 10:** {{ owasp_llm10 }}
-**OWASP Agentic Top 10:** {{ owasp_agentic }}
-**AVID:** {{ avid }}
-**NIST AI RMF:** {{ nist_ai_rmf }}
-**Vulnerability class:** {{ vulnerability_class }}
-**Status:** {{ status }}
-**Target fingerprint (when discovered):** {{ target_fingerprint }}
+| Field | Value |
+| --- | --- |
+| Severity | {{ vr.severity }} |
+| DEFCON | {{ vr.defcon }} (1=most severe, 5=least) |
+| Safety score | {{ vr.safety_score_0_100 }}/100 |
+| OWASP LLM Top 10 | {{ vr.owasp_llm_top_10 | join(", ") or "—" }} |
+| OWASP Agentic Top 10 | {{ vr.owasp_agentic_top_10 | join(", ") or "—" }} |
+| AVID | {{ vr.avid | join(", ") or "—" }} |
+| NIST AI RMF | {{ vr.nist_ai_rmf | join(", ") or "—" }} |
+| Vulnerability class | VC-{{ vr.vulnerability_class_id }} |
+| Status | {{ vr.status }} |
+| Target fingerprint at discovery | `{{ vr.target_fingerprint_at_discovery }}` |
+| Run | `{{ vr.run_id }}` |
 
 ## Clinical Impact
 {{ clinical_impact }}
 
 ## Minimal Reproducer
-{{ minimal_reproducer }}
+
+```
+HTTP request
+{{ http_block }}
+```
+
+Replay:
+```bash
+tb regress --case {{ vr.vr_id }}
+```
 
 ## Observed Behavior
-{{ observed_behavior }}
+{{ observed }}
 
 ## Expected Behavior
-{{ expected_behavior }}
+{{ expected }}
 
 ## Recommended Remediation
-{{ recommended_remediation }}
+{% for bullet in remediation %}- {{ bullet }}
+{% endfor %}
 
 ## Evidence
-{{ evidence }}
+| Item | Value |
+| --- | --- |
+| trace_id | `{{ trace_id }}` |
+| attempt_id | `{{ attempt_id }}` |
+| judge verdict | `{{ judge_verdict_summary }}` |
 
 ## Validation
-{{ validation }}
+- Regression case: `evals/regression/{{ vr.vr_id }}.json`
+- Replay command: `tb regress --case {{ vr.vr_id }}`
+- Validation history: _(empty until first replay)_
 
 ## Residual Risk
 {{ residual_risk }}

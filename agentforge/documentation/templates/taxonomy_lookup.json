@@ -1,1 +1,34 @@
-{}
+{
+  "owasp_llm_top_10_2025": {
+    "prompt_injection": ["LLM01"],
+    "data_exfiltration": ["LLM02", "LLM06"],
+    "state_corruption": ["LLM01"],
+    "tool_misuse": ["LLM08"],
+    "denial_of_service": ["LLM04"],
+    "identity_role": ["LLM03"],
+    "clinical_integrity": ["LLM02", "LLM05"],
+    "observability_leakage": ["LLM02"],
+    "platform_self_attack": ["LLM01", "LLM03"]
+  },
+  "owasp_agentic_top_10_2025": {
+    "prompt_injection": ["A1"],
+    "tool_misuse": ["A2"],
+    "identity_role": ["A3"],
+    "state_corruption": ["A6"],
+    "denial_of_service": ["A8"],
+    "platform_self_attack": ["A1", "A6", "A7"]
+  },
+  "avid_v1": {
+    "prompt_injection": ["S0201:Prompt Injection"],
+    "data_exfiltration": ["S0202:Information Leak"],
+    "tool_misuse": ["S0203:Tool Misuse"],
+    "denial_of_service": ["P0301:Resource Exhaustion"],
+    "clinical_integrity": ["S0204:Output Integrity"]
+  },
+  "nist_ai_rmf_genai_profile": {
+    "default": ["Measure 2.7", "Manage 2.4"],
+    "data_exfiltration": ["Measure 2.7", "Govern 1.4", "Manage 2.4"],
+    "clinical_integrity": ["Measure 2.10", "Manage 2.4"],
+    "platform_self_attack": ["Govern 1.4", "Measure 2.7"]
+  }
+}
