@@ -28,6 +28,7 @@ AgDR-0016 records the decision to materialize these Protocols.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 import anthropic
@@ -44,6 +45,45 @@ from agentforge.orchestrator.orchestrator import (
     CategoryStrategy,
     PlannerResponse,
 )
+
+# --------------------------------------------------------------------------- TokenUsage
+
+
+@dataclass(frozen=True)
+class TokenUsage:
+    """Per-call token + model record reported by the Anthropic SDK.
+
+    Sub-plan Next03 §4.2 (AgDR-0019). Each wrapper writes its most-recent
+    call's usage to ``self.last_usage`` so the orchestrator's
+    ``_persist_cost_ledger`` can record real per-role token counts and
+    compute cost from ``config/pricing.yml`` (closes AgDR-0016 #3 +
+    AgDR-0017 #1).
+
+    A None value means the wrapper has not yet been called OR the most
+    recent call failed before ``response.usage`` could be read. Consumers
+    must defensively handle both shapes.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    model: str
+
+
+def _extract_usage(resp: Any, model: str) -> TokenUsage | None:
+    """Pull (input_tokens, output_tokens) out of an anthropic response.
+
+    Defensive: returns None on any parse failure rather than raising — the
+    cost-ledger then falls back to the orchestrator's class-level estimate.
+    """
+    try:
+        return TokenUsage(
+            input_tokens=int(resp.usage.input_tokens),  # type: ignore[attr-defined]
+            output_tokens=int(resp.usage.output_tokens),  # type: ignore[attr-defined]
+            model=model,
+        )
+    except (AttributeError, TypeError, ValueError):
+        return None
+
 
 # --------------------------------------------------------------------------- helpers
 
@@ -116,6 +156,8 @@ class HaikuQuickVerdictClient:
         self._api_key = api_key
         self._model = model
         self._client: anthropic.Anthropic | None = None
+        # Sub-plan Next03 §4.2 (AgDR-0019): per-call token usage sidecar.
+        self.last_usage: TokenUsage | None = None
 
     def _ensure(self) -> anthropic.Anthropic:
         if self._client is None:
@@ -153,12 +195,14 @@ class HaikuQuickVerdictClient:
             )
         except Exception as exc:  # broad: network / SDK / rate-limit
             logger.warning("HaikuQuickVerdictClient call failed: {}", exc)
+            self.last_usage = None
             return RubricOutcome(
                 passed=True,
                 confidence=0.0,
                 abstained=True,
                 rationale=f"haiku call failed: {exc}",
             )
+        self.last_usage = _extract_usage(resp, self._model)
 
         text = _strip_json_fence(_extract_text(resp))
         try:
@@ -210,6 +254,8 @@ class SonnetJudgeClient:
         self._api_key = api_key
         self._model = model
         self._client: anthropic.Anthropic | None = None
+        # Sub-plan Next03 §4.2 (AgDR-0019): per-call token usage sidecar.
+        self.last_usage: TokenUsage | None = None
 
     def _ensure(self) -> anthropic.Anthropic:
         if self._client is None:
@@ -229,6 +275,7 @@ class SonnetJudgeClient:
             system=JUDGE_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user}],
         )
+        self.last_usage = _extract_usage(resp, self._model)
         text = _extract_text(resp)
         if not text:
             raise MalformedJudgeResponse("Sonnet returned empty text block")
@@ -249,6 +296,8 @@ class SonnetDocClient:
         self._api_key = api_key
         self._model = model
         self._client: anthropic.Anthropic | None = None
+        # Sub-plan Next03 §4.2 (AgDR-0019): per-call token usage sidecar.
+        self.last_usage: TokenUsage | None = None
 
     def _ensure(self) -> anthropic.Anthropic:
         if self._client is None:
@@ -268,7 +317,9 @@ class SonnetDocClient:
             # fallback to its template-only path. Surface the reason so the
             # operator can see it in logs but don't kill the whole report.
             logger.warning("SonnetDocClient call failed: {}", exc)
+            self.last_usage = None
             return ""
+        self.last_usage = _extract_usage(resp, self._model)
         return _extract_text(resp)
 
 
@@ -288,6 +339,8 @@ class SonnetPlannerClient:
         self._api_key = api_key
         self._model = model
         self._client: anthropic.Anthropic | None = None
+        # Sub-plan Next03 §4.2 (AgDR-0019): per-call token usage sidecar.
+        self.last_usage: TokenUsage | None = None
 
     def _ensure(self) -> anthropic.Anthropic:
         if self._client is None:
@@ -309,7 +362,9 @@ class SonnetPlannerClient:
             )
         except Exception as exc:
             logger.warning("SonnetPlannerClient call failed: {}", exc)
+            self.last_usage = None
             return PlannerResponse(selections=[], halt_reasons=[f"planner error: {exc}"])
+        self.last_usage = _extract_usage(resp, self._model)
 
         text = _strip_json_fence(_extract_text(resp))
         if not text:
@@ -349,7 +404,8 @@ class SonnetPlannerClient:
 
 __all__ = [
     "HaikuQuickVerdictClient",
-    "SonnetJudgeClient",
     "SonnetDocClient",
+    "SonnetJudgeClient",
     "SonnetPlannerClient",
+    "TokenUsage",
 ]

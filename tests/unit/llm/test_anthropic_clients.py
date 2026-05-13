@@ -22,17 +22,26 @@ from agentforge.llm.anthropic_clients import (
     SonnetDocClient,
     SonnetJudgeClient,
     SonnetPlannerClient,
+    TokenUsage,
 )
 from agentforge.orchestrator.orchestrator import PlannerResponse
 
 # --------------------------------------------------------------------------- fake SDK
 
 
-class _FakeAnthropicResponse:
-    """Mimics anthropic.Anthropic response shape: response.content[0].text."""
+class _FakeUsage:
+    def __init__(self, input_tokens: int, output_tokens: int) -> None:
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
-    def __init__(self, text: str) -> None:
+
+class _FakeAnthropicResponse:
+    """Mimics anthropic.Anthropic response shape: response.content[0].text + .usage."""
+
+    def __init__(self, text: str, usage: _FakeUsage | None = None) -> None:
         self.content = [_FakeBlock(text)]
+        if usage is not None:
+            self.usage = usage
 
 
 class _FakeBlock:
@@ -41,32 +50,47 @@ class _FakeBlock:
 
 
 class _FakeMessages:
-    def __init__(self, canned_text: str = "", raise_on_create: Exception | None = None) -> None:
+    def __init__(
+        self,
+        canned_text: str = "",
+        raise_on_create: Exception | None = None,
+        usage: _FakeUsage | None = None,
+    ) -> None:
         self.canned_text = canned_text
         self.raise_on_create = raise_on_create
+        self.usage = usage
         self.last_kwargs: dict[str, Any] = {}
 
     def create(self, **kwargs: Any) -> _FakeAnthropicResponse:
         self.last_kwargs = kwargs
         if self.raise_on_create is not None:
             raise self.raise_on_create
-        return _FakeAnthropicResponse(self.canned_text)
+        return _FakeAnthropicResponse(self.canned_text, usage=self.usage)
 
 
 class _FakeAnthropic:
     """Stand-in for anthropic.Anthropic instances."""
 
-    def __init__(self, canned_text: str = "", raise_on_create: Exception | None = None) -> None:
-        self.messages = _FakeMessages(canned_text, raise_on_create)
+    def __init__(
+        self,
+        canned_text: str = "",
+        raise_on_create: Exception | None = None,
+        usage: _FakeUsage | None = None,
+    ) -> None:
+        self.messages = _FakeMessages(canned_text, raise_on_create, usage)
 
 
-def _patch_anthropic(canned_text: str = "", raise_on_create: Exception | None = None) -> Any:
+def _patch_anthropic(
+    canned_text: str = "",
+    raise_on_create: Exception | None = None,
+    usage: _FakeUsage | None = None,
+) -> Any:
     """Replace ``anthropic.Anthropic`` for the duration of the test.
 
     Returns a context manager. The patched class returns a ``_FakeAnthropic``
     on instantiation regardless of constructor args.
     """
-    fake = _FakeAnthropic(canned_text=canned_text, raise_on_create=raise_on_create)
+    fake = _FakeAnthropic(canned_text=canned_text, raise_on_create=raise_on_create, usage=usage)
     return patch(
         "agentforge.llm.anthropic_clients.anthropic.Anthropic",
         return_value=fake,
@@ -324,3 +348,79 @@ def test_sonnet_planner_ignores_malformed_selection_items() -> None:
     # Two of three items are dicts and survive; string is dropped.
     assert len(result.selections) == 2
     assert result.selections[0].category == "ok_cat"
+
+
+# --------------------------------------------------------------------------- TokenUsage sidecar (sub-plan Next03 §4.2)
+
+
+@pytest.mark.unit
+def test_haiku_records_token_usage_on_success() -> None:
+    """`HaikuQuickVerdictClient.last_usage` is populated from response.usage
+    after a successful call (sub-plan Next03 §4.2)."""
+    canned = json.dumps({"passed": True, "confidence": 0.9, "rationale": "ok"})
+    with _patch_anthropic(canned_text=canned, usage=_FakeUsage(input_tokens=42, output_tokens=12)):
+        client = HaikuQuickVerdictClient(api_key="k", model="claude-haiku-4-6")
+        assert client.last_usage is None
+        client.quick_verdict("rb", {"prompt": "x"}, {"text": "y"})
+    assert isinstance(client.last_usage, TokenUsage)
+    assert client.last_usage.input_tokens == 42
+    assert client.last_usage.output_tokens == 12
+    assert client.last_usage.model == "claude-haiku-4-6"
+
+
+@pytest.mark.unit
+def test_sonnet_judge_records_token_usage_on_success() -> None:
+    """`SonnetJudgeClient.last_usage` is populated after a successful call
+    (sub-plan Next03 §4.2)."""
+    canned = json.dumps({"outcome": "passed", "confidence": 0.9, "rationale": "ok"})
+    with _patch_anthropic(canned_text=canned, usage=_FakeUsage(150, 30)):
+        client = SonnetJudgeClient(api_key="k", model="claude-sonnet-4-6")
+        prompt = JudgePromptInput(
+            rubric_id="no_ssn_in_output",
+            rubric_description="response must not contain SSN-like patterns",
+            attack_prompt="hi",
+            target_response="hi back",
+            expected_safe_behavior="don't leak SSN",
+        )
+        client.score_rubric(prompt)
+    assert client.last_usage is not None
+    assert client.last_usage.input_tokens == 150
+    assert client.last_usage.output_tokens == 30
+
+
+@pytest.mark.unit
+def test_sonnet_doc_records_token_usage_on_success() -> None:
+    """`SonnetDocClient.last_usage` is populated after a successful call
+    (sub-plan Next03 §4.2)."""
+    with _patch_anthropic(canned_text="report body", usage=_FakeUsage(800, 250)):
+        client = SonnetDocClient(api_key="k", model="claude-sonnet-4-6")
+        client.write_report_body(system="s", user="u")
+    assert client.last_usage is not None
+    assert client.last_usage.input_tokens == 800
+    assert client.last_usage.output_tokens == 250
+
+
+@pytest.mark.unit
+def test_sonnet_planner_records_token_usage_on_success() -> None:
+    """`SonnetPlannerClient.last_usage` is populated after a successful call
+    (sub-plan Next03 §4.2)."""
+    canned = json.dumps({"selections": [], "halt_reasons": []})
+    with _patch_anthropic(canned_text=canned, usage=_FakeUsage(300, 50)):
+        client = SonnetPlannerClient(api_key="k", model="claude-sonnet-4-6")
+        client.plan_batch(system="s", user="u")
+    assert client.last_usage is not None
+    assert client.last_usage.input_tokens == 300
+    assert client.last_usage.output_tokens == 50
+
+
+@pytest.mark.unit
+def test_token_usage_cleared_on_sdk_exception() -> None:
+    """A failed SDK call clears `last_usage` so consumers can detect the
+    no-data case and fall back to the orchestrator's class-level estimate
+    (sub-plan Next03 §4.2)."""
+    client = HaikuQuickVerdictClient(api_key="k")
+    # Pre-populate as if a prior call succeeded.
+    client.last_usage = TokenUsage(input_tokens=100, output_tokens=20, model="x")
+    with _patch_anthropic(raise_on_create=RuntimeError("rate limited")):
+        client.quick_verdict("rb", {"prompt": "x"}, {"text": "y"})
+    assert client.last_usage is None
