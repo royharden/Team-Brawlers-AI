@@ -151,10 +151,12 @@ You should see your existing `openemr-mvp` project tile. **Leave it alone** for 
 Settings tab → **Deploy** section → **Start Command**:
 
 ```
-uvicorn agentforge.api.main:app --host 0.0.0.0 --port $PORT
+sh -c "alembic upgrade head && python scripts/seed_demo_data.py && uvicorn agentforge.api.main:app --host 0.0.0.0 --port $PORT"
 ```
 
-> 🚨 `$PORT` is Railway's auto-injected port variable. Hardcoding `8100` works locally but **fails on Railway** — Railway expects the app to bind whatever it injects. The `PORT` env var in §5.3 below also helps the platform locally, but Railway's `$PORT` overrides it in the start command.
+> 🚨 `$PORT` is Railway's auto-injected port variable. Hardcoding `8100` works locally but **fails on Railway** — Railway expects the app to bind whatever it injects.
+>
+> ℹ️ **The three-step chain matters.** `alembic upgrade head` creates the schema on the empty `/data` volume on first boot. `scripts/seed_demo_data.py` populates the dashboard's reading tables with demo data so the deployed UI is non-empty on first impression -- it's idempotent (no-ops if the `runs` table is already populated), so subsequent redeploys preserve real campaign data without re-seeding. Then uvicorn binds.
 
 ### 5.3 Set Variables On `agentforge-api`
 

@@ -42,10 +42,13 @@ services:
     extra_hosts:
       # Required on Linux Docker; harmless on Windows / Mac (Docker Desktop resolves automatically)
       - "host.docker.internal:host-gateway"
-    # Run Alembic upgrade against the (possibly-empty) volume before uvicorn binds.
-    # On first boot this creates the schema in the named volume; subsequent boots no-op.
+    # Run Alembic upgrade + idempotent demo-data seed against the (possibly-empty)
+    # volume before uvicorn binds. On first boot this creates the schema and
+    # populates the dashboard's reading tables; subsequent boots no-op (the seeder
+    # exits 0 if `runs` table already has data).
     command: >
       sh -c "alembic upgrade head &&
+      python scripts/seed_demo_data.py &&
       uvicorn agentforge.api.main:app --host 0.0.0.0 --port 8100"
 
   agentforge-ui:
