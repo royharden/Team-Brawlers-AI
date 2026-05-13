@@ -60,6 +60,23 @@ def test_dashboard_runs_reports_paths() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_recompute_judge_meta_hits_correct_path() -> None:
+    """`AgentForgeClient.recompute_judge_meta()` POSTs `/v1/judge/recompute?layer=...`
+    and round-trips the metrics payload (sub-plan Next03 §3.4)."""
+    payload = {"layer": "external_final", "metrics": {"precision": 0.9}}
+    route = respx.post(f"{BASE_URL}/v1/judge/recompute").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+    c = AgentForgeClient(base_url=BASE_URL)
+    out = c.recompute_judge_meta()
+    assert out == payload
+    assert route.called
+    # Verify the layer query-param was sent.
+    assert route.calls.last.request.url.params["layer"] == "external_final"
+
+
+@pytest.mark.unit
+@respx.mock
 def test_get_coverage_cells_hits_correct_path() -> None:
     """`AgentForgeClient.get_coverage_cells()` GETs `/v1/coverage/cells` and
     round-trips the payload (sub-plan Next03 §3.1)."""

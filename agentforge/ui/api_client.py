@@ -114,6 +114,13 @@ class AgentForgeClient:
     def approval_queue(self) -> dict[str, Any]:
         return self._get_json("/v1/approval/queue")
 
+    # --- judge meta-eval -------------------------------------------------
+
+    def recompute_judge_meta(self, layer: str = "external_final") -> dict[str, Any]:
+        resp = self._client.post("/v1/judge/recompute", params={"layer": layer})
+        resp.raise_for_status()
+        return cast("dict[str, Any]", resp.json())
+
 
 # Backwards-compat alias for the older module name.
 APIClient = AgentForgeClient
