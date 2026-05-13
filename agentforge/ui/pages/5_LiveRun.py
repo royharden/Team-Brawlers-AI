@@ -14,8 +14,10 @@ from agentforge.ui.api_client import AgentForgeClient
 def render() -> None:
     st.title("Live Run")
     st.info(
-        "Live attack streaming wires up when the live target adapter lands. "
-        "For now, use `tb attack --mock` from CLI."
+        "Run `poetry run tb attack --count 1 --run-type smoke` in a terminal "
+        "and refresh this page to see the most-recent regression batch + "
+        "tick the dashboard's totals. Live SSE/WebSocket streaming is "
+        "deferred — see Plan_wk3_Claude_Next03 §3.7."
     )
     client = AgentForgeClient()
     try:
