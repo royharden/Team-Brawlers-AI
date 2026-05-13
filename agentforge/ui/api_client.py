@@ -1,20 +1,121 @@
-"""httpx-based thin client → FastAPI app — master plan §4."""
+"""httpx-based thin client → FastAPI app — master plan §4.
+
+**Architecture invariant**: this module talks to the FastAPI app over HTTP
+only. It MUST NOT import ``agentforge.memory.db``, ``agentforge.memory.models``,
+or ``agentforge.memory.repo``. The only ``agentforge.*`` import allowed from
+the UI layer is :mod:`agentforge.api.responses` (types only, no DB code).
+Enforced by ``tests/unit/ui/test_no_db_imports.py``.
+"""
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import httpx
 
 
-class APIClient:
+def _default_base_url() -> str:
+    return os.environ.get("AGENTFORGE_API_URL", "http://localhost:8100")
+
+
+class AgentForgeClient:
     """Synchronous httpx client that talks to the AgentForge FastAPI app."""
 
-    def __init__(self, base_url: str = "http://localhost:8001") -> None:
-        self.base_url = base_url
-        self._client: httpx.Client = httpx.Client(base_url=base_url, timeout=10.0)
+    def __init__(self, base_url: str | None = None, timeout: float = 10.0) -> None:
+        self.base_url = base_url or _default_base_url()
+        self._client: httpx.Client = httpx.Client(
+            base_url=self.base_url, timeout=timeout
+        )
 
-    def healthz(self) -> dict[str, Any]:
-        resp = self._client.get("/healthz")
+    # --- generic ---------------------------------------------------------
+
+    def _get_json(self, path: str, **params: Any) -> Any:
+        resp = self._client.get(path, params=params or None)
         resp.raise_for_status()
         return resp.json()
+
+    def _get_text(self, path: str) -> str:
+        resp = self._client.get(path)
+        resp.raise_for_status()
+        return resp.text
+
+    def close(self) -> None:
+        self._client.close()
+
+    # --- health ----------------------------------------------------------
+
+    def healthz(self) -> dict[str, Any]:
+        return self._get_json("/healthz")
+
+    # --- dashboard -------------------------------------------------------
+
+    def get_dashboard(self) -> dict[str, Any]:
+        return self._get_json("/v1/dashboard")
+
+    # --- runs ------------------------------------------------------------
+
+    def list_runs(self, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        return self._get_json("/v1/runs", limit=limit, offset=offset)
+
+    def get_run(self, run_id: str) -> dict[str, Any]:
+        return self._get_json(f"/v1/runs/{run_id}")
+
+    # --- reports ---------------------------------------------------------
+
+    def list_reports(
+        self, severity: str | None = None, status: str | None = None
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        if severity is not None:
+            params["severity"] = severity
+        if status is not None:
+            params["status"] = status
+        return self._get_json("/v1/reports", **params)
+
+    def get_report(self, vr_id: str) -> dict[str, Any]:
+        return self._get_json(f"/v1/reports/{vr_id}")
+
+    def get_report_markdown(self, vr_id: str) -> str:
+        return self._get_text(f"/v1/reports/{vr_id}.md")
+
+    # --- cost ------------------------------------------------------------
+
+    def cost_today(self) -> dict[str, Any]:
+        return self._get_json("/v1/cost/today")
+
+    def cost_projections(self) -> dict[str, Any]:
+        return self._get_json("/v1/cost/projections")
+
+    # --- regression ------------------------------------------------------
+
+    def list_regression_cases(self) -> dict[str, Any]:
+        return self._get_json("/v1/regression/cases")
+
+    def latest_regression_results(self) -> dict[str, Any]:
+        return self._get_json("/v1/regression/results/latest")
+
+    # --- lineage ---------------------------------------------------------
+
+    def lineage(self, attack_id: str) -> dict[str, Any]:
+        return self._get_json(f"/v1/lineage/{attack_id}")
+
+    # --- defense delta ---------------------------------------------------
+
+    def delta_trend(self, last: int = 10) -> dict[str, Any]:
+        return self._get_json("/v1/delta/trend", last=last)
+
+    def delta_snapshot(self, fingerprint: str) -> dict[str, Any]:
+        return self._get_json(f"/v1/delta/snapshot/{fingerprint}")
+
+    # --- approval --------------------------------------------------------
+
+    def approval_queue(self) -> dict[str, Any]:
+        return self._get_json("/v1/approval/queue")
+
+
+# Backwards-compat alias for the older module name.
+APIClient = AgentForgeClient
+
+
+__all__ = ["AgentForgeClient", "APIClient"]

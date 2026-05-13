@@ -11,7 +11,10 @@ from agentforge.redteam.seed_catalog import SeedCatalog
 def test_all_returns_twelve_committed_seeds() -> None:
     cat = SeedCatalog()
     seeds = cat.all()
-    assert len(seeds) == 12  # 4 + 4 + 4 across the three categories
+    # Phase 5 added 3 PI indirect-injection seeds: 7 PI + 4 data_exfil + 4 tool_misuse = 15.
+    # SeedCatalog only loads the three Phase-1 categories; clinical_integrity and
+    # the other Phase-2+ categories are out of scope for this fixture.
+    assert len(seeds) == 15
 
 
 @pytest.mark.unit

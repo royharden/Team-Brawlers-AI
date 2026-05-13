@@ -307,3 +307,59 @@ a Phase-1 pre-commit hook (`tests/CATALOG.md` must match `pytest --collect-only`
 | `tests/unit/test_cli.py::test_report_prints_markdown_to_stdout` | `unit` | `tb report --vr VR-####` prints the matching `reports/VR-####-<slug>.md` to stdout. |
 | `tests/unit/test_cli.py::test_seed_lists_by_category` | `unit` | `tb seed --category <cat>` lists seeds via `SeedCatalog`. |
 | `tests/unit/test_cli.py::test_meta_eval_stub_does_not_block_ci` | `unit` | `tb meta-eval` exits 0 even when the F2 meta-eval module / gold set is not yet ready (Phase 5 placeholder). |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_lab_pdf_round_trips_injected_text` | `unit` | `PDFFactory.lab_with_injection` body-placement injection survives a pypdf extract — the indirect-injection guardrail (master plan §14 Phase 5 task 1). |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_lab_pdf_each_placement_variant[after_results]` | `unit` | `injection_placement="after_results"` round-trips through pypdf. |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_lab_pdf_each_placement_variant[header_footer]` | `unit` | `injection_placement="header_footer"` round-trips through pypdf. |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_lab_pdf_each_placement_variant[metadata]` | `unit` | `injection_placement="metadata"` round-trips via `/Subject` metadata. |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_lab_pdf_each_placement_variant[off_page]` | `unit` | `injection_placement="off_page"` (negative y-coords) still surfaces from the content stream. |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_intake_form_round_trips_injected_text` | `unit` | `PDFFactory.intake_form_with_injection` header/footer injection survives a pypdf extract. |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_pdf_metadata_set` | `unit` | Every emitted PDF carries the `/Producer = AgentForge PDFFactory v1` tag (artifact traceability). |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_pdf_includes_patient_name_and_dob` | `unit` | Patient name + DOB appear in the visible body of every rendered PDF (synthetic-fixture content sanity). |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_lab_panel_renders_each_row` | `unit` | Every `LabRow` (name + value + unit) renders into the visible body. |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_off_page_text_not_visible_but_extractable` | `unit` | Off-page placement produces a different byte-stream than `after_results` for the same payload (placement parameter is load-bearing). |
+| `tests/unit/target_adapter/test_pdf_factory.py::test_factory_raises_if_extraction_loses_injection` | `unit` | When the round-trip extractor drops the payload, the factory raises `RuntimeError` rather than emitting a silently-broken PDF. |
+| `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_bytes_for_indirect_injection_seed` | `unit` | `DocumentSmuggleMutator.render_document` produces PDF bytes whose round-trip extract carries the seed's `injected_text` (master plan §14 Phase 5 task 2). |
+| `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_none_for_non_indirect_seed` | `unit` | A seed without an `indirect_injection` block yields `None` (no spurious PDF generation). |
+| `tests/unit/redteam/mutators/test_document_smuggle.py::test_three_placement_variants_distinct_mutator_ids` | `unit` | The three concrete variants register distinct ids (`lab_after_results`, `intake_header_footer`, `lab_metadata`) so seeds can pin a placement. |
+| `tests/unit/redteam/mutators/test_document_smuggle.py::test_applicable_to_indirect_injection_only` | `unit` | `applicable_to` returns True iff the seed declares an `indirect_injection` block. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_each_new_pi_seed_validates_against_schema[prompt_injection_indirect_lab_pdf_persona_override.yaml]` | `unit` | New PI seed `prompt_injection_indirect_lab_pdf_persona_override` validates against `case_schema.json`. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_each_new_pi_seed_validates_against_schema[prompt_injection_indirect_lab_pdf_disclose_other_patient.yaml]` | `unit` | New PI seed `prompt_injection_indirect_lab_pdf_disclose_other_patient` validates against `case_schema.json`. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_each_new_pi_seed_validates_against_schema[prompt_injection_indirect_intake_form_system_prompt_extract.yaml]` | `unit` | New PI seed `prompt_injection_indirect_intake_form_system_prompt_extract` validates against `case_schema.json`. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_each_new_ci_seed_validates_against_schema[clinical_integrity_lab_pdf_fake_glucose_with_unit_swap.yaml]` | `unit` | New CI seed `clinical_integrity_lab_pdf_fake_glucose_with_unit_swap` validates against `case_schema.json`. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_each_new_ci_seed_validates_against_schema[clinical_integrity_lab_pdf_wrong_patient_dob.yaml]` | `unit` | New CI seed `clinical_integrity_lab_pdf_wrong_patient_dob` validates against `case_schema.json`. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_each_new_ci_seed_validates_against_schema[clinical_integrity_lab_pdf_off_page_correction.yaml]` | `unit` | New CI seed `clinical_integrity_lab_pdf_off_page_correction` validates against `case_schema.json`. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_indirect_injection_block_required_fields` | `unit` | Every new seed's `indirect_injection` block carries the required (`document_kind`, `injection_placement`, `injected_text`) and uses an enum-valid placement + kind. |
+| `tests/unit/judge/test_indirect_injection_seeds_validate.py::test_seed_catalog_drift_still_aligns` | `unit` | After the Phase 5 seed additions, `evals/cases/<cat>/` and `agentforge/redteam/seed_catalog/<cat>.yaml` still carry the same set of ids for `prompt_injection` and `clinical_integrity`. |
+| `tests/unit/api/test_routes_dashboard.py::test_healthz_ok` | `unit` | `/healthz` returns `{status:"ok", phase, tests_passing, version}` (master plan §4). |
+| `tests/unit/api/test_routes_dashboard.py::test_dashboard_empty` | `unit` | `/v1/dashboard` on an empty DB returns zeros + `total_cells=72` + `latest_run=None` (master plan §4 / §12). |
+| `tests/unit/api/test_routes_dashboard.py::test_dashboard_with_seeded_data` | `unit` | `/v1/dashboard` aggregates seeded runs / VRs / cost / coverage rows. |
+| `tests/unit/api/test_routes_runs.py::test_runs_list_pagination` | `unit` | `/v1/runs?limit&offset` returns the requested slice + total. |
+| `tests/unit/api/test_routes_runs.py::test_run_detail_counts_attacks_and_verdicts` | `unit` | `/v1/runs/{id}` joins through `attack_traces` to count verdicts. |
+| `tests/unit/api/test_routes_runs.py::test_run_detail_404` | `unit` | Unknown run id returns 404 (no silent zero-row body). |
+| `tests/unit/api/test_routes_runs.py::test_runs_start_returns_501_phase_8` | `unit` | Mutating `POST /v1/runs/start` is a Phase-8 stub returning 501 (read-only surface in Phase 5). |
+| `tests/unit/api/test_routes_reports.py::test_reports_list_filter_by_severity` | `unit` | `/v1/reports?severity=high` filters the response set. |
+| `tests/unit/api/test_routes_reports.py::test_report_detail_by_vr_id` | `unit` | `/v1/reports/{vr_id}` returns the VR + its markdown body. |
+| `tests/unit/api/test_routes_reports.py::test_report_markdown_endpoint` | `unit` | `/v1/reports/{vr_id}.md` returns raw markdown with text/plain content-type (route registered before `{vr_id}`). |
+| `tests/unit/api/test_routes_reports.py::test_report_detail_404` | `unit` | Unknown vr_id returns 404. |
+| `tests/unit/api/test_routes_cost.py::test_cost_today_aggregates_ledger` | `unit` | `/v1/cost/today` rolls cost_ledger up by `agent_role` and counts calls. |
+| `tests/unit/api/test_routes_cost.py::test_cost_projections_reads_latest_file` | `unit` | `/v1/cost/projections` reads the most-recent `evals/results/cost_extrapolate_*.json`. |
+| `tests/unit/api/test_routes_regression.py::test_list_regression_cases` | `unit` | `/v1/regression/cases` lists registered cases (vr_id + `what_bug_this_catches`). |
+| `tests/unit/api/test_routes_regression.py::test_latest_regression_results` | `unit` | `/v1/regression/results/latest` parses the most-recent `regression_*.jsonl`. |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_tree` | `unit` | `/v1/lineage/{attack_id}` returns the nested tree rooted at the requested attack. |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_404_for_unknown` | `unit` | Unknown attack_id returns 404 (no silent empty tree). |
+| `tests/unit/api/test_routes_delta.py::test_delta_trend_respects_last_param` | `unit` | `/v1/delta/trend?last=N` returns exactly N most-recent snapshots. |
+| `tests/unit/api/test_routes_delta.py::test_delta_snapshot_fetch_by_fingerprint` | `unit` | `/v1/delta/snapshot/{fingerprint}` returns the most-recent snapshot for a fingerprint. |
+| `tests/unit/api/test_routes_delta.py::test_delta_snapshot_404` | `unit` | Unknown fingerprint returns 404. |
+| `tests/unit/api/test_routes_approval.py::test_approval_queue_lists_jsonl` | `unit` | `/v1/approval/queue` reads `data/notifier_queue.jsonl` line-by-line. |
+| `tests/unit/api/test_routes_approval.py::test_approval_approve_returns_501` | `unit` | `POST /v1/approval/{vr_id}/approve` is a Phase-8 stub returning 501. |
+| `tests/unit/api/test_routes_approval.py::test_approval_reject_returns_501` | `unit` | `POST /v1/approval/{vr_id}/reject` is a Phase-8 stub returning 501. |
+| `tests/unit/ui/test_api_client.py::test_healthz_hits_correct_path` | `unit` | `AgentForgeClient.healthz()` GETs `/healthz`. |
+| `tests/unit/ui/test_api_client.py::test_dashboard_runs_reports_paths` | `unit` | UI client hits the correct paths for dashboard / runs / reports endpoints (respx-mocked). |
+| `tests/unit/ui/test_api_client.py::test_cost_regression_lineage_delta_approval_paths` | `unit` | UI client hits the correct paths for cost / regression / lineage / delta / approval endpoints (respx-mocked). |
+| `tests/unit/ui/test_components.py::test_coverage_heatmap_returns_8x9_grid` | `unit` | `coverage_heatmap` shapes a sparse snapshot into the canonical 8x9 grid; missing cells are None. |
+| `tests/unit/ui/test_components.py::test_severity_badge_returns_color_tuples` | `unit` | `severity_badge` returns the (bg, fg) hex tuple for known severities and falls back to "unknown" otherwise. |
+| `tests/unit/ui/test_no_db_imports.py::test_ui_layer_does_not_import_memory_modules` | `unit` | Architecture invariant: nothing under `agentforge/ui/` may import `agentforge.memory.{db,models,repo}` (AgDR-0002 / master plan §4). |
+| `tests/unit/ui/test_no_db_imports.py::test_ui_layer_only_imports_api_responses_from_api` | `unit` | The only sanctioned `agentforge.api.*` import from the UI is `agentforge.api.responses`. |
+| `tests/unit/observability/test_dashboards.py::test_aggregate_run_costs_rolls_up_by_role` | `unit` | `aggregate_run_costs` returns total + n_calls + per-role Decimal sums (master plan §15). |
+| `tests/unit/observability/test_dashboards.py::test_coverage_pct_handles_sparse_matrix` | `unit` | `coverage_pct` denominator is always 72; sparse inputs treat missing cells as uncovered. |
+| `tests/unit/observability/test_dashboards.py::test_recent_fingerprints_orders_distinct_most_recent_first` | `unit` | `recent_fingerprints` returns distinct fingerprints ordered most-recent first (no duplicates from repeat snapshots). |
