@@ -101,6 +101,9 @@ class AgentForgeClient:
     def lineage(self, attack_id: str) -> dict[str, Any]:
         return self._get_json(f"/v1/lineage/{attack_id}")
 
+    def lineage_recent(self, limit: int = 50) -> dict[str, Any]:
+        return self._get_json("/v1/lineage/recent", limit=limit)
+
     # --- defense delta ---------------------------------------------------
 
     def delta_trend(self, last: int = 10) -> dict[str, Any]:

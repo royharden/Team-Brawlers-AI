@@ -185,6 +185,20 @@ class LineageNode(BaseModel):
 LineageNode.model_rebuild()
 
 
+class LineageRecentRow(BaseModel):
+    attack_id: str
+    attack_job_id: str
+    category: str
+    strategy: str
+    created_at: datetime | None = None
+    latency_ms: int = 0
+    target_error: str | None = None
+
+
+class LineageRecentResponse(BaseModel):
+    rows: list[LineageRecentRow] = Field(default_factory=list)
+
+
 # --- Defense delta ------------------------------------------------------------
 
 
@@ -234,6 +248,8 @@ __all__ = [
     "RegressionResultRow",
     "RegressionResultsResponse",
     "LineageNode",
+    "LineageRecentRow",
+    "LineageRecentResponse",
     "DefenseDeltaSnapshotResponse",
     "DefenseDeltaTrendResponse",
     "ApprovalQueueItem",

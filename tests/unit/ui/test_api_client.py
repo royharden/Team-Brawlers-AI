@@ -60,6 +60,22 @@ def test_dashboard_runs_reports_paths() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_lineage_recent_hits_correct_path() -> None:
+    """`AgentForgeClient.lineage_recent(limit)` GETs `/v1/lineage/recent?limit=N`
+    (sub-plan Next03 §3.5)."""
+    payload = {"rows": [{"attack_id": "aid", "category": "prompt_injection"}]}
+    route = respx.get(f"{BASE_URL}/v1/lineage/recent").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+    c = AgentForgeClient(base_url=BASE_URL)
+    out = c.lineage_recent(limit=25)
+    assert out == payload
+    assert route.called
+    assert route.calls.last.request.url.params["limit"] == "25"
+
+
+@pytest.mark.unit
+@respx.mock
 def test_recompute_judge_meta_hits_correct_path() -> None:
     """`AgentForgeClient.recompute_judge_meta()` POSTs `/v1/judge/recompute?layer=...`
     and round-trips the metrics payload (sub-plan Next03 §3.4)."""
