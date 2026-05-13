@@ -26,8 +26,8 @@ from agentforge.api import (
     routes_runs,
 )
 
-# Phase 5: 337 tests passing on `main` at handoff. Updated as the suite grows.
-TESTS_PASSING_AT_BUILD: int = 337
+# Phase 8 (Next03 close-out): 455 tests passing on `main`. Updated as the suite grows.
+TESTS_PASSING_AT_BUILD: int = 455
 
 
 def _build_app() -> FastAPI:

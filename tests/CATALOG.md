@@ -20,15 +20,27 @@ the contract this catalog enforces.
 | `tests/unit/api/test_routes_approval.py::test_approval_approve_returns_501` | `unit` | `POST /v1/approval/{vr_id}/approve` is a Phase-8 stub returning 501. |
 | `tests/unit/api/test_routes_approval.py::test_approval_reject_returns_501` | `unit` | `POST /v1/approval/{vr_id}/reject` is a Phase-8 stub returning 501. |
 | `tests/unit/api/test_routes_cost.py::test_cost_today_aggregates_ledger` | `unit` | `/v1/cost/today` rolls cost_ledger up by `agent_role` and counts calls. |
-| `tests/unit/api/test_routes_cost.py::test_cost_projections_reads_latest_file` | `unit` | `/v1/cost/projections` reads the most-recent `evals/results/cost_extrapolate_*.json`. |
+| `tests/unit/api/test_routes_cost.py::test_cost_projections_computed_from_pricing_yml_with_empty_ledger` | `unit` | `/v1/cost/projections` returns the four-scale projection with non-zero |
+| `tests/unit/api/test_routes_cost.py::test_cost_projections_reflects_recent_ledger_spend` | `unit` | Seeded `cost_ledger` rows flow into `actual_dev_spend_usd` on the projections |
 | `tests/unit/api/test_routes_dashboard.py::test_healthz_ok` | `unit` | `/healthz` returns `{status:"ok", phase, tests_passing, version}` (master plan §4). |
 | `tests/unit/api/test_routes_dashboard.py::test_dashboard_empty` | `unit` | `/v1/dashboard` on an empty DB returns zeros + `total_cells=72` + `latest_run=None` (master plan §4 / §12). |
 | `tests/unit/api/test_routes_dashboard.py::test_dashboard_with_seeded_data` | `unit` | `/v1/dashboard` aggregates seeded runs / VRs / cost / coverage rows. |
+| `tests/unit/api/test_routes_dashboard.py::test_coverage_cells_empty_db` | `unit` | `/v1/coverage/cells` on an empty DB returns no rows + total_cells=72 + covered=0 |
+| `tests/unit/api/test_routes_dashboard.py::test_coverage_cells_returns_seeded_attempts_passes_failures` | `unit` | `/v1/coverage/cells` round-trips attempts/passes/failures from coverage_cells |
+| `tests/unit/api/test_routes_dashboard.py::test_coverage_cells_covered_count_matches_dashboard` | `unit` | The `covered_cells` field is consistent between `/v1/coverage/cells` and |
+| `tests/unit/api/test_routes_dashboard.py::test_coverage_cells_pass_rate_round_trip` | `unit` | The cell's `last_pass_rate` round-trips as a float (sub-plan Next03 §3.1). |
 | `tests/unit/api/test_routes_delta.py::test_delta_trend_respects_last_param` | `unit` | `/v1/delta/trend?last=N` returns exactly N most-recent snapshots. |
 | `tests/unit/api/test_routes_delta.py::test_delta_snapshot_fetch_by_fingerprint` | `unit` | `/v1/delta/snapshot/{fingerprint}` returns the most-recent snapshot for a fingerprint. |
 | `tests/unit/api/test_routes_delta.py::test_delta_snapshot_404` | `unit` | Unknown fingerprint returns 404. |
+| `tests/unit/api/test_routes_judge.py::test_judge_recompute_calls_runner_and_returns_metrics` | `unit` | `POST /v1/judge/recompute` calls run_meta_eval(layer=...) and returns the |
+| `tests/unit/api/test_routes_judge.py::test_judge_recompute_honors_layer_query_param` | `unit` | `?layer=internal_progress` is forwarded to the runner (sub-plan Next03 §3.4). |
+| `tests/unit/api/test_routes_judge.py::test_judge_recompute_invalid_layer_rejected` | `unit` | The Literal-typed `layer` query parameter rejects unknown values |
+| `tests/unit/api/test_routes_judge.py::test_judge_recompute_500_on_runner_exception` | `unit` | Runner exceptions surface as a 500 with the underlying detail (sub-plan |
 | `tests/unit/api/test_routes_lineage.py::test_lineage_tree` | `unit` | `/v1/lineage/{attack_id}` returns the nested tree rooted at the requested attack. |
 | `tests/unit/api/test_routes_lineage.py::test_lineage_404_for_unknown` | `unit` | Unknown attack_id returns 404 (no silent empty tree). |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_recent_returns_most_recent_first` | `unit` | `GET /v1/lineage/recent` orders rows by attack_jobs.created_at DESC |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_recent_respects_limit` | `unit` | `?limit=N` caps the response (sub-plan Next03 §3.5). |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_recent_joins_category_and_strategy` | `unit` | The join populates category + strategy from attack_jobs (sub-plan Next03 §3.5). |
 | `tests/unit/api/test_routes_regression.py::test_list_regression_cases` | `unit` | `/v1/regression/cases` lists registered cases (vr_id + `what_bug_this_catches`). |
 | `tests/unit/api/test_routes_regression.py::test_latest_regression_results` | `unit` | `/v1/regression/results/latest` parses the most-recent `regression_*.jsonl`. |
 | `tests/unit/api/test_routes_reports.py::test_reports_list_filter_by_severity` | `unit` | `/v1/reports?severity=high` filters the response set. |
@@ -213,6 +225,11 @@ the contract this catalog enforces.
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_handles_sdk_exception` | `unit` | (no docstring) test_sonnet_planner_handles_sdk_exception |
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_strips_fence` | `unit` | (no docstring) test_sonnet_planner_strips_fence |
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_ignores_malformed_selection_items` | `unit` | Mixed shape: dict + string + dict-with-missing-keys. Survivors only. |
+| `tests/unit/llm/test_anthropic_clients.py::test_haiku_records_token_usage_on_success` | `unit` | `HaikuQuickVerdictClient.last_usage` is populated from response.usage |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_records_token_usage_on_success` | `unit` | `SonnetJudgeClient.last_usage` is populated after a successful call |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_doc_records_token_usage_on_success` | `unit` | `SonnetDocClient.last_usage` is populated after a successful call |
+| `tests/unit/llm/test_anthropic_clients.py::test_sonnet_planner_records_token_usage_on_success` | `unit` | `SonnetPlannerClient.last_usage` is populated after a successful call |
+| `tests/unit/llm/test_anthropic_clients.py::test_token_usage_cleared_on_sdk_exception` | `unit` | A failed SDK call clears `last_usage` so consumers can detect the |
 | `tests/unit/observability/test_dashboards.py::test_aggregate_run_costs_rolls_up_by_role` | `unit` | `aggregate_run_costs` returns total + n_calls + per-role Decimal sums (master plan §15). |
 | `tests/unit/observability/test_dashboards.py::test_coverage_pct_handles_sparse_matrix` | `unit` | `coverage_pct` denominator is always 72; sparse inputs treat missing cells as uncovered. |
 | `tests/unit/observability/test_dashboards.py::test_recent_fingerprints_orders_distinct_most_recent_first` | `unit` | `recent_fingerprints` returns distinct fingerprints ordered most-recent first (no duplicates from repeat snapshots). |
@@ -261,6 +278,8 @@ the contract this catalog enforces.
 | `tests/unit/orchestrator/test_defense_delta.py::test_trend_returns_most_recent_first` | `unit` | `DefenseDelta.trend(last_n=N)` returns the N most-recent snapshots in descending `snapshot_at` order — drives the dashboard line graph. |
 | `tests/unit/orchestrator/test_defense_delta.py::test_delta_computes_b_minus_a` | `unit` | `DefenseDelta.delta(fp_a, fp_b)` returns per-cell `(pass_rate_b - pass_rate_a)` — used by Phase-6 fix validation. |
 | `tests/unit/orchestrator/test_defense_delta.py::test_empty_coverage_yields_zero_aggregate` | `unit` | Snapshotting with no coverage data returns `aggregate_pass_rate=0.0` and `by_cell={}` (no crash, no NaN). |
+| `tests/unit/orchestrator/test_defense_delta.py::test_orchestrator_writes_snapshot_when_fingerprint_changes` | `unit` | When the injected target_fingerprinter returns a different value than |
+| `tests/unit/orchestrator/test_defense_delta.py::test_orchestrator_skips_snapshot_when_fingerprint_unchanged` | `unit` | Successive steps with the same fingerprint do NOT write a snapshot |
 | `tests/unit/orchestrator/test_orchestrator.py::test_plan_next_batch_uses_fake_planner_client` | `unit` | When an `OrchestratorAnthropicClient` is injected, `plan_next_batch` delegates to it and returns its `PlannerResponse.selections`. |
 | `tests/unit/orchestrator/test_orchestrator.py::test_plan_next_batch_deterministic_fallback` | `unit` | No planner client → deterministic heuristic returns batch_size selections |
 | `tests/unit/orchestrator/test_orchestrator.py::test_step_calls_all_five_roles_in_order` | `unit` | `step()` invokes Red Team → Target Adapter → Internal Judge → External Judge → Coverage in the master-plan §8.1 sequence. |
@@ -279,6 +298,9 @@ the contract this catalog enforces.
 | `tests/unit/orchestrator/test_persistence.py::test_end_run_finalizes_status_and_total_cost` | `unit` | end_run() updates ended_at, status, halt_reason, and total_cost_usd. |
 | `tests/unit/orchestrator/test_persistence.py::test_coverage_cells_persisted_too` | `unit` | CoverageMatrix.update() runs inside step(); cell row should exist. |
 | `tests/unit/orchestrator/test_persistence.py::test_persistence_idempotent_on_second_step` | `unit` | A second step() reuses the same Run row but creates new AttackJob/Trace. |
+| `tests/unit/orchestrator/test_persistence.py::test_cost_ledger_uses_real_tokens_when_wrapper_reports_them` | `unit` | If `usage_sources[role].last_usage` is set + a PricingTable is wired, |
+| `tests/unit/orchestrator/test_persistence.py::test_cost_ledger_falls_back_to_class_estimate_when_usage_missing` | `unit` | No usage_sources + no pricing → behave exactly as AgDR-0017 did: |
+| `tests/unit/orchestrator/test_persistence.py::test_end_run_total_cost_reflects_real_token_pricing` | `unit` | `end_run()` sums cost_ledger.cost_usd into Run.total_cost_usd; with |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_bytes_for_indirect_injection_seed` | `unit` | `DocumentSmuggleMutator.render_document` produces PDF bytes whose round-trip extract carries the seed's `injected_text` (master plan §14 Phase 5 task 2). |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_render_document_returns_none_for_non_indirect_seed` | `unit` | A seed without an `indirect_injection` block yields `None` (no spurious PDF generation). |
 | `tests/unit/redteam/mutators/test_document_smuggle.py::test_three_placement_variants_distinct_mutator_ids` | `unit` | Each concrete variant must register its own id so seeds can pin a |
@@ -391,6 +413,8 @@ the contract this catalog enforces.
 | `tests/unit/test_cost_extrapolate.py::test_actual_dev_spend_with_seed_rows` | `unit` | Seeded cost_ledger rows roll up into the right per-role + total spend. |
 | `tests/unit/test_cost_extrapolate.py::test_output_jsonl_written` | `unit` | End-to-end CLI run writes a JSON file with the expected top-level keys. |
 | `tests/unit/test_cost_extrapolate.py::test_decimal_arithmetic_no_float_drift` | `unit` | Every intermediate in the cost path must be Decimal, not float. |
+| `tests/unit/test_generate_sample_vrs.py::test_generate_sample_vrs_inserts_db_rows` | `unit` | `main()` writes a vuln_reports row + a regression_cases row + (if new) |
+| `tests/unit/test_generate_sample_vrs.py::test_generate_sample_vrs_rerun_doesnt_crash_on_db_collisions` | `unit` | Re-running the generator does not crash — DB collisions on |
 | `tests/unit/test_pricing.py::test_pricing_table_loads_yaml` | `unit` | `PricingTable.from_yaml` parses fresh `config/pricing.yml` and registers known models (master plan §6). |
 | `tests/unit/test_pricing.py::test_pricing_stale_raises` | `unit` | YAML older than 2x freshness window must raise `PricingStale` instead of silently using stale prices (master plan §15). |
 | `tests/unit/test_pricing.py::test_pricing_stale_warning_logged` | `unit` | Within 2x window but past freshness — should warn, not raise. |
@@ -402,8 +426,12 @@ the contract this catalog enforces.
 | `tests/unit/test_pricing.py::test_resolve_models_fireworks_substitution_logged` | `unit` | When REDTEAM_PROVIDER=fireworks but no Fireworks key/SDK, the resolver |
 | `tests/unit/ui/test_api_client.py::test_healthz_hits_correct_path` | `unit` | `AgentForgeClient.healthz()` GETs `/healthz`. |
 | `tests/unit/ui/test_api_client.py::test_dashboard_runs_reports_paths` | `unit` | UI client hits the correct paths for dashboard / runs / reports endpoints (respx-mocked). |
+| `tests/unit/ui/test_api_client.py::test_lineage_recent_hits_correct_path` | `unit` | `AgentForgeClient.lineage_recent(limit)` GETs `/v1/lineage/recent?limit=N` |
+| `tests/unit/ui/test_api_client.py::test_recompute_judge_meta_hits_correct_path` | `unit` | `AgentForgeClient.recompute_judge_meta()` POSTs `/v1/judge/recompute?layer=...` |
+| `tests/unit/ui/test_api_client.py::test_get_coverage_cells_hits_correct_path` | `unit` | `AgentForgeClient.get_coverage_cells()` GETs `/v1/coverage/cells` and |
 | `tests/unit/ui/test_api_client.py::test_cost_regression_lineage_delta_approval_paths` | `unit` | UI client hits the correct paths for cost / regression / lineage / delta / approval endpoints (respx-mocked). |
 | `tests/unit/ui/test_components.py::test_coverage_heatmap_returns_8x9_grid` | `unit` | `coverage_heatmap` shapes a sparse snapshot into the canonical 8x9 grid; missing cells are None. |
 | `tests/unit/ui/test_components.py::test_severity_badge_returns_color_tuples` | `unit` | `severity_badge` returns the (bg, fg) hex tuple for known severities and falls back to "unknown" otherwise. |
+| `tests/unit/ui/test_components.py::test_defense_delta_chart_reverses_to_chronological_order` | `unit` | `defense_delta_chart` takes API-shaped (newest-first) snapshots and |
 | `tests/unit/ui/test_no_db_imports.py::test_ui_layer_does_not_import_memory_modules` | `unit` | Architecture invariant: nothing under `agentforge/ui/` may import `agentforge.memory.{db,models,repo}` (AgDR-0002 / master plan §4). |
 | `tests/unit/ui/test_no_db_imports.py::test_ui_layer_only_imports_api_responses_from_api` | `unit` | The single sanctioned ``agentforge.api.*`` import from the UI is the |
