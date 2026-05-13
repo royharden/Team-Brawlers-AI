@@ -1,0 +1,110 @@
+# --- secrets / credentials (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-auth-*.txt
+*Anthtropic*.txt
+*ANTHROPIC*.txt
+*FIREWORKS*.txt
+*LANGFUSE*.txt
+*github-auth-*
+github-auth-token-*.txt
+api_keys/
+credentials/
+secrets/
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.dmypy.json
+.pytype/
+.cython_debug/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- virtualenvs ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- ide ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- jupyter ---
+.ipynb_checkpoints/
+*.ipynb
+
+# --- platform runtime data ---
+data/
+*.sqlite
+*.sqlite-journal
+*.db
+agentforge.db*
+
+# --- logs + traces ---
+logs/
+*.log
+trace_*.json
+
+# --- eval results (output, regenerable) ---
+evals/results/
+!evals/results/.gitkeep
+
+# --- node / streamlit caches ---
+node_modules/
+.streamlit/secrets.toml
+
+# --- OS junk ---
+.cache/
+Thumbs.db
+desktop.ini
+
+# --- ad-hoc local scratch ---
+scratch/
+local/
+playground/
+
+# --- packaging artifacts ---
+*.tar.gz
+*.whl
+
+# --- documentation builds ---
+site/
+docs/_build/
+
+# --- playwright ---
+playwright-report/
+test-results/
+
+# --- generated reports (we DO commit reports/ but ignore renders that aren't markdown source) ---
+# reports/ stays committed; just ignore PDF/HTML renders that are regenerated
+reports/**/*.pdf
+
+# --- coverage reports ---
+coverage.xml
+*.cover
