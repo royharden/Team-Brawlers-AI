@@ -60,6 +60,21 @@ def test_dashboard_runs_reports_paths() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_approval_post_methods_hit_correct_paths() -> None:
+    """`AgentForgeClient.approve / reject / dismiss` POST to
+    `/v1/approval/{vr_id}/{action}?reviewer=...` (sub-plan Next04)."""
+    for action in ("approve", "reject", "dismiss"):
+        respx.post(f"{BASE_URL}/v1/approval/VR-1/{action}").mock(
+            return_value=httpx.Response(200, json={"vr_id": "VR-1"})
+        )
+    c = AgentForgeClient(base_url=BASE_URL)
+    assert c.approve("VR-1")["vr_id"] == "VR-1"
+    assert c.reject("VR-1")["vr_id"] == "VR-1"
+    assert c.dismiss("VR-1", reviewer="bob")["vr_id"] == "VR-1"
+
+
+@pytest.mark.unit
+@respx.mock
 def test_lineage_recent_hits_correct_path() -> None:
     """`AgentForgeClient.lineage_recent(limit)` GETs `/v1/lineage/recent?limit=N`
     (sub-plan Next03 §3.5)."""

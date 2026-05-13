@@ -117,6 +117,21 @@ class AgentForgeClient:
     def approval_queue(self) -> dict[str, Any]:
         return self._get_json("/v1/approval/queue")
 
+    def approve(self, vr_id: str, reviewer: str = "operator") -> dict[str, Any]:
+        resp = self._client.post(f"/v1/approval/{vr_id}/approve", params={"reviewer": reviewer})
+        resp.raise_for_status()
+        return cast("dict[str, Any]", resp.json())
+
+    def reject(self, vr_id: str, reviewer: str = "operator") -> dict[str, Any]:
+        resp = self._client.post(f"/v1/approval/{vr_id}/reject", params={"reviewer": reviewer})
+        resp.raise_for_status()
+        return cast("dict[str, Any]", resp.json())
+
+    def dismiss(self, vr_id: str, reviewer: str = "operator") -> dict[str, Any]:
+        resp = self._client.post(f"/v1/approval/{vr_id}/dismiss", params={"reviewer": reviewer})
+        resp.raise_for_status()
+        return cast("dict[str, Any]", resp.json())
+
     # --- judge meta-eval -------------------------------------------------
 
     def recompute_judge_meta(self, layer: str = "external_final") -> dict[str, Any]:
