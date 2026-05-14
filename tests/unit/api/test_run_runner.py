@@ -118,3 +118,155 @@ def test_stream_event_serialization_round_trip() -> None:
     parsed = json.loads(payload)
     assert parsed["run_id"] == "rid-x"
     assert parsed["attacks_executed"] == 4
+
+
+# --------------------------------------------------------------------------- Next06 §5
+
+
+@pytest.mark.unit
+def test_list_non_terminal_run_ids_includes_pending_and_running() -> None:
+    """`list_non_terminal_run_ids` is the queue-depth counter — it
+    surfaces both `pending` (queued, waiting on semaphore) and `running`
+    states, but NOT terminal ones."""
+    run_runner._set(run_runner.RunState(run_id="r-pend", status="pending"))
+    run_runner._set(run_runner.RunState(run_id="r-run", status="running"))
+    run_runner._set(run_runner.RunState(run_id="r-done", status="completed"))
+    run_runner._set(run_runner.RunState(run_id="r-fail", status="failed"))
+    run_runner._set(run_runner.RunState(run_id="r-halt", status="halted"))
+    queue = run_runner.list_non_terminal_run_ids()
+    assert sorted(queue) == ["r-pend", "r-run"]
+
+
+@pytest.mark.unit
+def test_start_background_run_refuses_when_queue_depth_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When `pending+running` count reaches `max_concurrent + max_queued`,
+    the next start returns `error="queue depth reached: ..."`."""
+    monkeypatch.setattr(
+        run_runner,
+        "list_non_terminal_run_ids",
+        lambda: ["r1", "r2", "r3", "r4", "r5"],  # 5 already in flight
+    )
+
+    class _StubCfg:
+        class budget:
+            max_concurrent_runs = 1
+            max_queued_runs = 4  # total cap = 5; already at limit
+
+    monkeypatch.setattr(run_runner, "get_settings", lambda: _StubCfg())
+
+    state = run_runner.start_background_run("smoke", 1)
+    assert state.run_id == ""
+    assert state.status == "failed"
+    assert state.error is not None
+    assert state.error.startswith("queue depth reached")
+
+
+@pytest.mark.unit
+def test_start_background_run_accepts_when_queue_has_slack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """4 in flight with limit=5 → accept the 5th, spawn the thread."""
+
+    class _StubCfg:
+        class budget:
+            max_concurrent_runs = 2
+            max_queued_runs = 3  # total = 5; 4 in flight is OK
+
+    monkeypatch.setattr(run_runner, "get_settings", lambda: _StubCfg())
+    monkeypatch.setattr(
+        run_runner,
+        "list_non_terminal_run_ids",
+        lambda: ["r1", "r2", "r3", "r4"],
+    )
+    # Don't actually run the orchestrator — replace the thread body.
+    spawned: list[str] = []
+
+    def _stub_thread(target, args, daemon, name):
+        spawned.append(args[0])
+
+        class _T:
+            def start(self_inner) -> None:
+                pass
+
+        return _T()
+
+    monkeypatch.setattr(run_runner.threading, "Thread", _stub_thread)
+
+    state = run_runner.start_background_run("smoke", 1)
+    assert state.run_id  # non-empty
+    assert state.status == "pending"
+    assert state.run_id in spawned
+
+
+@pytest.mark.unit
+def test_semaphore_picks_up_max_concurrent_runs_from_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`_get_semaphore` builds a Semaphore of size `max_concurrent_runs`
+    and rebuilds when the limit changes."""
+
+    class _Cfg1:
+        class budget:
+            max_concurrent_runs = 1
+
+    class _Cfg3:
+        class budget:
+            max_concurrent_runs = 3
+
+    run_runner.reset_semaphore_for_tests()
+    monkeypatch.setattr(run_runner, "get_settings", lambda: _Cfg1())
+    sem1 = run_runner._get_semaphore()
+    assert run_runner._semaphore_limit == 1
+    assert sem1 is run_runner._get_semaphore()  # cached
+
+    monkeypatch.setattr(run_runner, "get_settings", lambda: _Cfg3())
+    sem3 = run_runner._get_semaphore()
+    assert run_runner._semaphore_limit == 3
+    assert sem3 is not sem1  # rebuilt when limit changed
+
+
+@pytest.mark.unit
+def test_run_thread_acquires_and_releases_semaphore_around_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The thread body acquires the sem, runs the orchestrator step,
+    and releases on the finally — even when step() raises."""
+
+    class _Cfg:
+        class budget:
+            max_concurrent_runs = 1
+
+    run_runner.reset_semaphore_for_tests()
+    monkeypatch.setattr(run_runner, "get_settings", lambda: _Cfg())
+
+    class _Counter:
+        acquires = 0
+        releases = 0
+
+    class _CountingSem:
+        def acquire(self_inner) -> None:
+            _Counter.acquires += 1
+
+        def release(self_inner) -> None:
+            _Counter.releases += 1
+
+    monkeypatch.setattr(run_runner, "_get_semaphore", lambda: _CountingSem())
+
+    # Force the orchestrator construction path to raise so we exercise
+    # the exception branch — sem must still release.
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("simulated factory failure")
+
+    monkeypatch.setattr(run_runner, "build_orchestrator", _boom)
+    run_runner._set(run_runner.RunState(run_id="rid-thread", status="pending"))
+
+    run_runner._run_thread("rid-thread", "smoke", 1)
+
+    assert _Counter.acquires == 1
+    assert _Counter.releases == 1
+    final = run_runner.get_run_state("rid-thread")
+    assert final is not None
+    assert final.status == "failed"
+    assert "simulated factory failure" in (final.error or "")

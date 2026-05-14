@@ -143,6 +143,13 @@ class BudgetConfig(BaseSettings):
     )
     per_attack_timeout_s: int = Field(default=60, alias="BUDGET_PER_ATTACK_TIMEOUT_S")
     target_error_rate_halt: float = Field(default=0.20, alias="BUDGET_TARGET_ERROR_RATE_HALT")
+    # Next06 §5 (AgDR-0025 follow-on #2): concurrency knob for the
+    # POST /v1/runs/start background runner. `max_concurrent_runs` is the
+    # number of orchestrator step() loops that may run in parallel;
+    # `max_queued_runs` caps how many additional starts wait on a slot
+    # before the API returns 429.
+    max_concurrent_runs: int = Field(default=1, alias="BUDGET_MAX_CONCURRENT_RUNS")
+    max_queued_runs: int = Field(default=4, alias="BUDGET_MAX_QUEUED_RUNS")
 
     @field_validator(
         "smoke_usd",

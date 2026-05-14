@@ -94,11 +94,13 @@ def start_run(
     caller polls via `/v1/runs/{run_id}/state` or streams via
     `/v1/runs/{run_id}/stream`.
 
-    Refuses (429) when another run is already in flight — concurrency cap
-    of 1 keeps LLM-call load predictable for the demo. Sub-plan Next05 §1.
+    Concurrency is governed by ``BUDGET_MAX_CONCURRENT_RUNS`` (default 1).
+    Additional starts queue in ``status="pending"`` up to
+    ``BUDGET_MAX_QUEUED_RUNS`` (default 4); beyond that the runner
+    refuses with 429. Sub-plan Next05 §1 + Next06 §5.
     """
     state = start_background_run(run_type=run_type, count=count)
-    if state.error == "another run is already in flight":
+    if state.error and state.error.startswith("queue depth reached"):
         raise HTTPException(status_code=429, detail=state.error)
     return RunStartResponse(
         run_id=state.run_id,

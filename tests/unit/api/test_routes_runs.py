@@ -90,11 +90,11 @@ def test_runs_start_returns_run_id_and_pending_status(
 
 
 @pytest.mark.unit
-def test_runs_start_429_when_another_run_in_flight(
+def test_runs_start_429_when_queue_depth_reached(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`POST /v1/runs/start` returns 429 when the runner refuses (concurrency
-    cap of 1 — sub-plan Next05 §1)."""
+    """`POST /v1/runs/start` returns 429 only when the configured queue
+    depth (concurrent + queued) is exhausted — Next06 §5."""
     from agentforge.api import run_runner
 
     def _fake_start(run_type: str = "smoke", count: int = 1) -> run_runner.RunState:
@@ -103,14 +103,14 @@ def test_runs_start_429_when_another_run_in_flight(
             status="failed",
             run_type=run_type,
             count=count,
-            error="another run is already in flight",
+            error="queue depth reached: 5 runs pending/running, max=5",
         )
 
     monkeypatch.setattr("agentforge.api.routes_runs.start_background_run", _fake_start)
 
     r = client.post("/v1/runs/start")
     assert r.status_code == 429
-    assert "in flight" in r.json()["detail"]
+    assert "queue depth" in r.json()["detail"]
 
 
 @pytest.mark.unit

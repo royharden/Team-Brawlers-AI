@@ -1,4 +1,4 @@
-"""Background-thread runner for `POST /v1/runs/start` — Next05 §1.
+"""Background-thread runner for `POST /v1/runs/start` — Next05 §1 + Next06 §5.
 
 Spawns the orchestrator's `step()` + `end_run()` sequence in a daemon
 thread so the HTTP request returns immediately with a `run_id`. Tracks
@@ -6,12 +6,23 @@ in-flight state in a module-level dict that both the polling endpoint
 (`GET /v1/runs/{run_id}/state`) and the SSE endpoint
 (`GET /v1/runs/{run_id}/stream`) read from.
 
-Concurrency model: one daemon thread per requested run. The orchestrator
-is independently safe — each construction gets its own session factory
-session per persistence call (AgDR-0017). We cap concurrency at the API
-layer (max one active run at a time per process) to keep the LLM-call
-load predictable; further runs queue or 429 depending on the operator's
-policy. Today we 429.
+Concurrency model (Next06 §5 — closes AgDR-0025 follow-on #2):
+  - ``BUDGET_MAX_CONCURRENT_RUNS`` (default 1) caps how many runs may
+    execute the orchestrator step loop in parallel; a module-level
+    ``threading.Semaphore`` enforces it.
+  - ``BUDGET_MAX_QUEUED_RUNS`` (default 4) caps how many additional
+    starts may sit in ``status="pending"`` waiting on a slot before
+    ``start_background_run`` refuses with an explicit error.
+  - The thread spawns immediately on every accepted start; it sits in
+    ``pending`` until the semaphore acquire returns, then transitions
+    to ``running``. This keeps the SSE / polling endpoint responsive
+    for queued runs from the moment the API returns the run_id.
+
+Persistence safety: each orchestrator construction gets its own session
+factory session per call (AgDR-0017). Two parallel step loops do NOT
+share a session — the SQLite write-side serializes anyway, so the
+practical concurrency cap on a SQLite backend is small even though the
+API allows higher values.
 """
 
 from __future__ import annotations
@@ -25,6 +36,7 @@ from typing import Any
 from loguru import logger
 from pydantic import BaseModel
 
+from agentforge.config import get_settings
 from agentforge.orchestrator.factory import build_orchestrator
 from agentforge.target_adapter.sidecar_direct import SidecarDirectAdapter
 
@@ -50,6 +62,43 @@ class RunState(BaseModel):
 _lock = threading.Lock()
 _active_runs: dict[str, RunState] = {}
 
+# Next06 §5: concurrency gate. Lazy-initialized on first start so the
+# module import doesn't touch settings (and tests can override
+# BUDGET_MAX_CONCURRENT_RUNS via env before any run fires).
+_sem_lock = threading.Lock()
+_semaphore: threading.Semaphore | None = None
+_semaphore_limit: int = 0
+
+
+def _get_semaphore() -> threading.Semaphore:
+    """Lazy singleton sized from ``BudgetConfig.max_concurrent_runs``.
+
+    If the limit changes between calls (e.g. operator hot-reloads the
+    env), the semaphore is rebuilt. Existing waiters on the old
+    semaphore complete on their original limit — the new one takes
+    over for fresh starts.
+    """
+    global _semaphore, _semaphore_limit
+    cfg = get_settings()
+    limit = max(1, int(cfg.budget.max_concurrent_runs))
+    with _sem_lock:
+        if _semaphore is None or _semaphore_limit != limit:
+            _semaphore = threading.Semaphore(limit)
+            _semaphore_limit = limit
+    return _semaphore
+
+
+def reset_semaphore_for_tests() -> None:
+    """Drop the cached semaphore so the next call picks up an env change.
+
+    Used only by tests that mutate ``BUDGET_MAX_CONCURRENT_RUNS`` via
+    monkeypatch; production code should never call this.
+    """
+    global _semaphore, _semaphore_limit
+    with _sem_lock:
+        _semaphore = None
+        _semaphore_limit = 0
+
 
 def get_run_state(run_id: str) -> RunState | None:
     """Read a run's current state from the in-memory tracker."""
@@ -62,6 +111,12 @@ def list_active_run_ids() -> list[str]:
     """Return run_ids that are currently `running` (not yet finished)."""
     with _lock:
         return [rid for rid, st in _active_runs.items() if st.status == "running"]
+
+
+def list_non_terminal_run_ids() -> list[str]:
+    """Return run_ids with status in {pending, running} — the queue depth."""
+    with _lock:
+        return [rid for rid, st in _active_runs.items() if st.status in {"pending", "running"}]
 
 
 def _set(state: RunState) -> None:
@@ -83,60 +138,73 @@ def _patch(run_id: str, **fields: Any) -> RunState | None:
 
 
 def _run_thread(run_id: str, run_type: str, count: int) -> None:
-    """Background body. Builds the orchestrator, runs one step(), end_run()s.
+    """Background body. Acquires a concurrency slot, builds the orchestrator,
+    runs one step(), end_run()s.
 
-    Catches any exception and stamps `status="failed"` + `error=...` so the
-    UI's polling loop sees the terminal state.
+    Sits in ``status="pending"`` until ``semaphore.acquire()`` returns
+    (i.e. another run finished and freed a slot), then transitions to
+    ``running``. Catches any exception and stamps ``status="failed"``
+    so the UI's polling loop always sees a terminal state.
     """
-    _patch(run_id, status="running", started_at=datetime.now(UTC))
+    sem = _get_semaphore()
+    sem.acquire()
     try:
-        # SidecarDirectAdapter() reads sidecar URL + secret from MainConfig.
-        # Adapter `execute` signature is `Any` for flexibility but the orchestrator
-        # protocol declares MutatedAttack — same shape as cli.py's call.
-        orchestrator = build_orchestrator(
-            SidecarDirectAdapter(),  # type: ignore[arg-type]
-            run_type=run_type,  # type: ignore[arg-type]
-            run_id=run_id,
-        )
-        result = orchestrator.step(batch_size=count)
-        status = "halted" if result.halted else "completed"
-        halt_reason = result.halt_reason.value if result.halt_reason else None
-        orchestrator.end_run(status=status, halt_reason=halt_reason)
-        _patch(
-            run_id,
-            status=status,
-            attacks_executed=result.attacks_executed,
-            findings_written=result.findings_written,
-            halted=result.halted,
-            halt_reason=halt_reason,
-            finished_at=datetime.now(UTC),
-        )
-    except Exception as exc:
-        logger.exception("Background run {} failed: {}", run_id, exc)
-        _patch(
-            run_id,
-            status="failed",
-            error=str(exc),
-            finished_at=datetime.now(UTC),
-        )
+        _patch(run_id, status="running", started_at=datetime.now(UTC))
+        try:
+            orchestrator = build_orchestrator(
+                SidecarDirectAdapter(),  # type: ignore[arg-type]
+                run_type=run_type,  # type: ignore[arg-type]
+                run_id=run_id,
+            )
+            result = orchestrator.step(batch_size=count)
+            status = "halted" if result.halted else "completed"
+            halt_reason = result.halt_reason.value if result.halt_reason else None
+            orchestrator.end_run(status=status, halt_reason=halt_reason)
+            _patch(
+                run_id,
+                status=status,
+                attacks_executed=result.attacks_executed,
+                findings_written=result.findings_written,
+                halted=result.halted,
+                halt_reason=halt_reason,
+                finished_at=datetime.now(UTC),
+            )
+        except Exception as exc:
+            logger.exception("Background run {} failed: {}", run_id, exc)
+            _patch(
+                run_id,
+                status="failed",
+                error=str(exc),
+                finished_at=datetime.now(UTC),
+            )
+    finally:
+        sem.release()
 
 
 def start_background_run(run_type: str = "smoke", count: int = 1) -> RunState:
-    """Spawn a daemon thread that runs `orchestrator.step(batch_size=count)`.
+    """Spawn a daemon thread that runs ``orchestrator.step(batch_size=count)``.
 
-    Returns the initial `RunState` (status="pending"); the thread updates it
-    in place. Refuses to start if another run is already `running` (returns
-    a state with `error="already_running"` — caller handles 429).
+    Returns the initial ``RunState`` (``status="pending"``); the thread
+    transitions to ``running`` once a concurrency slot opens. Refuses
+    only when the configured queue depth
+    (``max_concurrent_runs + max_queued_runs``) is exceeded, returning
+    a state with ``error="queue depth reached: ..."`` so the API can
+    map to 429.
     """
-    if list_active_run_ids():
-        # Caller will 429 on this — keep concurrency at 1 to keep LLM-call
-        # load predictable for the demo.
+    cfg = get_settings()
+    max_in_flight = max(1, int(cfg.budget.max_concurrent_runs)) + max(
+        0, int(cfg.budget.max_queued_runs)
+    )
+    in_flight = len(list_non_terminal_run_ids())
+    if in_flight >= max_in_flight:
         return RunState(
             run_id="",
             status="failed",
             run_type=run_type,
             count=count,
-            error="another run is already in flight",
+            error=(
+                f"queue depth reached: {in_flight} runs pending/running, " f"max={max_in_flight}"
+            ),
         )
     run_id = str(uuid.uuid4())
     state = RunState(run_id=run_id, status="pending", run_type=run_type, count=count)
@@ -194,6 +262,8 @@ __all__ = [
     "RunState",
     "get_run_state",
     "list_active_run_ids",
+    "list_non_terminal_run_ids",
+    "reset_semaphore_for_tests",
     "start_background_run",
     "stream_run_events",
 ]
