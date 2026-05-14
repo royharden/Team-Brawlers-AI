@@ -44,6 +44,15 @@ the contract this catalog enforces.
 | `tests/unit/api/test_routes_lineage.py::test_lineage_recent_returns_most_recent_first` | `unit` | `GET /v1/lineage/recent` orders rows by attack_jobs.created_at DESC |
 | `tests/unit/api/test_routes_lineage.py::test_lineage_recent_respects_limit` | `unit` | `?limit=N` caps the response (sub-plan Next03 §3.5). |
 | `tests/unit/api/test_routes_lineage.py::test_lineage_recent_joins_category_and_strategy` | `unit` | The join populates category + strategy from attack_jobs (sub-plan Next03 §3.5). |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_for_attack_walks_db_when_in_process_registry_empty` | `unit` | `GET /v1/lineage/{attack_id}` falls back to a DB walk of |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_for_attack_subtree_lookup_works` | `unit` | Looking up a non-root attack_id returns the subtree rooted at it |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_for_attack_returns_404_when_neither_registry_nor_db_has_it` | `unit` | If the in-process registry AND the DB both lack the attack_id, the |
+| `tests/unit/api/test_routes_lineage.py::test_lineage_recent_uses_attack_id_when_present` | `unit` | `/v1/lineage/recent.rows[*].attack_id` returns the agent-level id |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_empty_db_returns_zero` | `unit` | Empty DB → 0 attacks scanned, 0% refusal rate, no crash. |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_aggregates_correctly` | `unit` | 3 of 10 traces refuse → refusal_rate=0.3 (sub-plan Next05 §5). |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_breaks_down_by_category` | `unit` | Two categories with different refusal rates surface separately |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_respects_last_param` | `unit` | `?last=N` caps the slice — only the most-recent N traces are scanned. |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_handles_malformed_target_response_json` | `unit` | A malformed `target_response_json` value is treated as non-refusal — |
 | `tests/unit/api/test_routes_regression.py::test_list_regression_cases` | `unit` | `/v1/regression/cases` lists registered cases (vr_id + `what_bug_this_catches`). |
 | `tests/unit/api/test_routes_regression.py::test_latest_regression_results` | `unit` | `/v1/regression/results/latest` parses the most-recent `regression_*.jsonl`. |
 | `tests/unit/api/test_routes_reports.py::test_reports_list_filter_by_severity` | `unit` | `/v1/reports?severity=high` filters the response set. |
@@ -53,7 +62,17 @@ the contract this catalog enforces.
 | `tests/unit/api/test_routes_runs.py::test_runs_list_pagination` | `unit` | `/v1/runs?limit&offset` returns the requested slice + total. |
 | `tests/unit/api/test_routes_runs.py::test_run_detail_counts_attacks_and_verdicts` | `unit` | `/v1/runs/{id}` joins through `attack_traces` to count verdicts. |
 | `tests/unit/api/test_routes_runs.py::test_run_detail_404` | `unit` | Unknown run id returns 404 (no silent zero-row body). |
-| `tests/unit/api/test_routes_runs.py::test_runs_start_returns_501_phase_8` | `unit` | Mutating `POST /v1/runs/start` is a Phase-8 stub returning 501 (read-only surface in Phase 5). |
+| `tests/unit/api/test_routes_runs.py::test_runs_start_returns_run_id_and_pending_status` | `unit` | `POST /v1/runs/start` returns 200 + `{run_id, status}`. The runner |
+| `tests/unit/api/test_routes_runs.py::test_runs_start_429_when_another_run_in_flight` | `unit` | `POST /v1/runs/start` returns 429 when the runner refuses (concurrency |
+| `tests/unit/api/test_routes_runs.py::test_get_run_live_state_404_when_not_tracked` | `unit` | `GET /v1/runs/{run_id}/state` returns 404 when the run_id was never |
+| `tests/unit/api/test_routes_runs.py::test_get_run_live_state_returns_tracked_state` | `unit` | `GET /v1/runs/{run_id}/state` returns the runner's in-memory state. |
+| `tests/unit/api/test_routes_runs.py::test_runs_stream_404_when_not_tracked` | `unit` | `GET /v1/runs/{run_id}/stream` returns 404 when the run_id is not |
+| `tests/unit/api/test_run_runner.py::test_get_run_state_returns_none_for_unknown_run` | `unit` | (no docstring) test_get_run_state_returns_none_for_unknown_run |
+| `tests/unit/api/test_run_runner.py::test_set_and_patch_round_trip` | `unit` | `_set` records a state; `_patch` updates fields by name. |
+| `tests/unit/api/test_run_runner.py::test_list_active_run_ids_filters_to_running` | `unit` | `list_active_run_ids` returns only `status == "running"` ids. |
+| `tests/unit/api/test_run_runner.py::test_stream_run_events_yields_terminal_state_then_stops` | `unit` | `stream_run_events` yields the current state, waits for terminal, |
+| `tests/unit/api/test_run_runner.py::test_stream_run_events_unknown_run_emits_error_event` | `unit` | A request to stream an unknown run_id yields an `event: error` payload |
+| `tests/unit/api/test_run_runner.py::test_stream_event_serialization_round_trip` | `unit` | Each `data:` event is a parseable JSON RunState. |
 | `tests/unit/documentation/test_doc_agent.py::test_pipeline_end_to_end_with_fake_clients` | `unit` | Full happy path: end-to-end writes everything to disk + DB. |
 | `tests/unit/documentation/test_doc_agent.py::test_layer_enforcement_refuses_internal_verdict` | `unit` | An internal_progress verdict must raise — only external_final makes VRs. |
 | `tests/unit/documentation/test_doc_agent.py::test_vr_counter_monotonic` | `unit` | Three consecutive write_report calls produce VR-0001, VR-0002, VR-0003. |
@@ -319,6 +338,9 @@ the contract this catalog enforces.
 | `tests/unit/redteam/test_agent_generate.py::test_generate_falls_through_to_fallback_client_on_primary_exception` | `unit` | When the primary `paraphrase` raises and a fallback_client is wired, |
 | `tests/unit/redteam/test_agent_generate.py::test_generate_degrades_to_deterministic_when_both_clients_fail` | `unit` | When the primary AND the fallback both raise, the agent keeps the |
 | `tests/unit/redteam/test_agent_generate.py::test_generate_uses_primary_when_primary_succeeds_even_if_fallback_wired` | `unit` | The fallback client is NEVER called when the primary succeeds — no |
+| `tests/unit/redteam/test_agent_generate.py::test_agent_last_usage_reads_primary_when_primary_succeeds` | `unit` | `RedTeamAgent.last_usage` returns the PRIMARY client's `last_usage` |
+| `tests/unit/redteam/test_agent_generate.py::test_agent_last_usage_reads_fallback_when_primary_fails` | `unit` | When the primary raises and the fallback succeeds, `agent.last_usage` |
+| `tests/unit/redteam/test_agent_generate.py::test_agent_last_usage_clears_when_both_fail_and_deterministic_fires` | `unit` | When BOTH clients fail and the agent degrades to deterministic, |
 | `tests/unit/redteam/test_lineage.py::test_record_then_query_parents_and_children` | `unit` | `AttackLineage.record` then `ancestors` / `descendants` returns expected single-level relationships. |
 | `tests/unit/redteam/test_lineage.py::test_ancestors_walk_back_to_root_inclusive_left` | `unit` | `AttackLineage.ancestors` walks root → leaf exclusive of the leaf. |
 | `tests/unit/redteam/test_lineage.py::test_descendants_breadth_first_excludes_self` | `unit` | `AttackLineage.descendants` returns BFS order, excludes the root id. |
@@ -348,12 +370,15 @@ the contract this catalog enforces.
 | `tests/unit/redteam/test_mutators.py::test_all_mutators_are_deterministic_given_same_seed_int` | `unit` | Apply each mutator twice with same input; outputs must match exactly. |
 | `tests/unit/redteam/test_openai_client.py::test_paraphrase_returns_rewritten_text_when_no_refusal` | `unit` | `paraphrase` returns the model's text + None refusal_info when the |
 | `tests/unit/redteam/test_openai_client.py::test_paraphrase_detects_refusal_when_model_declines` | `unit` | Refusal-tagged response → refusal_info populated; text still returned |
+| `tests/unit/redteam/test_openai_client.py::test_paraphrase_records_token_usage_on_success` | `unit` | `last_usage` is populated from `completion.usage` after a successful |
 | `tests/unit/redteam/test_openai_client.py::test_paraphrase_passes_model_and_system_prompt` | `unit` | The configured model id + the cybersecurity-research system prompt |
 | `tests/unit/redteam/test_openrouter_client.py::test_paraphrase_happy_path` | `unit` | (no docstring) test_paraphrase_happy_path |
 | `tests/unit/redteam/test_openrouter_client.py::test_refusal_text_detected` | `unit` | (no docstring) test_refusal_text_detected |
 | `tests/unit/redteam/test_openrouter_client.py::test_extra_headers_propagate` | `unit` | (no docstring) test_extra_headers_propagate |
 | `tests/unit/redteam/test_openrouter_client.py::test_rate_limit_falls_back_to_paid_variant` | `unit` | :free tier returns a RateLimitError; client retries against the paid variant. |
 | `tests/unit/redteam/test_openrouter_client.py::test_rate_limit_no_fallback_propagates` | `unit` | (no docstring) test_rate_limit_no_fallback_propagates |
+| `tests/unit/redteam/test_openrouter_client.py::test_records_token_usage_on_successful_call` | `unit` | `last_usage` is populated from the SDK's `completion.usage` after a |
+| `tests/unit/redteam/test_openrouter_client.py::test_token_usage_records_against_fallback_model_when_primary_rate_limits` | `unit` | When the primary 429s and the fallback succeeds, `last_usage.model` |
 | `tests/unit/redteam/test_openrouter_client.py::test_implements_redteam_client_protocol` | `unit` | Structural conformance check against the Protocol. |
 | `tests/unit/redteam/test_provider_isolation.py::test_only_sanctioned_module_imports_sdk` | `unit` | Every module under agentforge/redteam/ must NOT import the forbidden |
 | `tests/unit/redteam/test_provider_isolation.py::test_sanctioned_module_actually_imports_its_sdk` | `unit` | Sanity-check the inverse: the sanctioned module DOES import the SDK |
@@ -435,10 +460,12 @@ the contract this catalog enforces.
 | `tests/unit/test_pricing.py::test_cost_for_call_no_float_drift` | `unit` | Confirm pricing arithmetic is `Decimal` end-to-end (no 0.30000000004). |
 | `tests/unit/test_pricing.py::test_unknown_model_raises` | `unit` | Unknown `(provider, model)` pair must raise `UnknownModel` (no silent $0 cost). |
 | `tests/unit/test_pricing.py::test_resolve_models_anthropic_all_found` | `unit` | REDTEAM_PROVIDER=anthropic, all requested models present, no substitution. |
-| `tests/unit/test_pricing.py::test_resolve_models_fast_falls_back_to_haiku_45` | `unit` | When `haiku-4-6` is absent, `resolve_models` falls back to `haiku-4-5` and records a substitution (master plan §6). |
+| `tests/unit/test_pricing.py::test_resolve_models_fast_resolves_to_haiku_45` | `unit` | When haiku-4-5 is the configured fast model AND it's published, the |
 | `tests/unit/test_pricing.py::test_resolve_models_fireworks_substitution_logged` | `unit` | When REDTEAM_PROVIDER=fireworks but no Fireworks key/SDK, the resolver |
 | `tests/unit/ui/test_api_client.py::test_healthz_hits_correct_path` | `unit` | `AgentForgeClient.healthz()` GETs `/healthz`. |
 | `tests/unit/ui/test_api_client.py::test_dashboard_runs_reports_paths` | `unit` | UI client hits the correct paths for dashboard / runs / reports endpoints (respx-mocked). |
+| `tests/unit/ui/test_api_client.py::test_refusal_rate_hits_correct_path` | `unit` | `AgentForgeClient.refusal_rate(last)` GETs `/v1/refusal-rate?last=N` |
+| `tests/unit/ui/test_api_client.py::test_start_run_and_get_live_state_paths` | `unit` | `AgentForgeClient.start_run` POSTs `/v1/runs/start?run_type=...&count=...` |
 | `tests/unit/ui/test_api_client.py::test_approval_post_methods_hit_correct_paths` | `unit` | `AgentForgeClient.approve / reject / dismiss` POST to |
 | `tests/unit/ui/test_api_client.py::test_lineage_recent_hits_correct_path` | `unit` | `AgentForgeClient.lineage_recent(limit)` GETs `/v1/lineage/recent?limit=N` |
 | `tests/unit/ui/test_api_client.py::test_recompute_judge_meta_hits_correct_path` | `unit` | `AgentForgeClient.recompute_judge_meta()` POSTs `/v1/judge/recompute?layer=...` |

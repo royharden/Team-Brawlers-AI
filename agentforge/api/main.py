@@ -27,8 +27,8 @@ from agentforge.api import (
     routes_runs,
 )
 
-# Phase 8 (Next04 close-out + AgDR-0024): 469 tests passing on `main`.
-TESTS_PASSING_AT_BUILD: int = 469
+# Phase 8 (Next05 close-out): 496 tests passing on `main`.
+TESTS_PASSING_AT_BUILD: int = 496
 
 
 def _build_app() -> FastAPI:
