@@ -50,7 +50,7 @@ def _build_app() -> FastAPI:
         return {
             "status": "ok",
             "version": __version__,
-            "phase": "5",
+            "phase": "8",
             "tests_passing": TESTS_PASSING_AT_BUILD,
         }
 

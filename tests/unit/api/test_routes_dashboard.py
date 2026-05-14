@@ -20,7 +20,7 @@ def test_healthz_ok(client: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["phase"] == "5"
+    assert body["phase"] == "8"
     assert body["tests_passing"] >= 1
     assert "version" in body
 
