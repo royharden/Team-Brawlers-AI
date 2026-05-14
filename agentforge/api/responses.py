@@ -258,10 +258,34 @@ class ApprovalQueueResponse(BaseModel):
 # --- Refusal rate (sub-plan Next05 §5) ---------------------------------------
 
 
+class RefusalTrendBucket(BaseModel):
+    """One time-bucket in the `?buckets=N` trend response (Next06 §2).
+
+    Half-open interval `[bucket_start, bucket_end)`. The bucket carries
+    the same refusal-rate computation as the aggregate (deterministic
+    detector over `target_response_json.body_text_preview`) but scoped
+    to attacks created within the bucket window.
+    """
+
+    bucket_start: datetime
+    bucket_end: datetime
+    n_attacks: int = 0
+    n_refusals: int = 0
+    refusal_rate: float = 0.0
+
+
 class RefusalRateResponse(BaseModel):
     """Per-call refusal-rate snapshot computed from the most-recent N
     attack traces. Refusal here = Co-Pilot target refused / declined the
     attack (the defense working as designed).
+
+    Next06 §2 extensions:
+      - `?since=<iso8601>` filter scopes the scan to a sliding window.
+      - `?buckets=N` returns a `trend` list of refusal-rate-over-time.
+      - `?detector=llm` opt-in routes the scan through the Haiku-backed
+        LLM classifier (Next06 §3) instead of the deterministic detector.
+      - `by_mutator` aggregates per individual mutator id across the
+        mutator_chain_json column (Next06 §2 closes AgDR-0029 #4).
     """
 
     n_attacks_scanned: int = 0
@@ -269,6 +293,9 @@ class RefusalRateResponse(BaseModel):
     refusal_rate: float = 0.0
     by_category: dict[str, float] = Field(default_factory=dict)
     by_strategy: dict[str, float] = Field(default_factory=dict)
+    by_mutator: dict[str, float] = Field(default_factory=dict)
+    trend: list[RefusalTrendBucket] | None = None
+    detector: str = "deterministic"
 
 
 # --- Startup probe (Next06 §1) ------------------------------------------------
@@ -336,6 +363,7 @@ __all__ = [
     "ApprovalQueueItem",
     "ApprovalQueueResponse",
     "RefusalRateResponse",
+    "RefusalTrendBucket",
     "StartupProbeRow",
     "StartupProbeResponse",
 ]

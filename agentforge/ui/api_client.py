@@ -75,8 +75,26 @@ class AgentForgeClient:
 
     # --- refusal-rate ---------------------------------------------------
 
-    def refusal_rate(self, last: int = 100) -> dict[str, Any]:
-        return self._get_json("/v1/refusal-rate", last=last)
+    def refusal_rate(
+        self,
+        last: int = 100,
+        *,
+        since: str | None = None,
+        buckets: int = 0,
+    ) -> dict[str, Any]:
+        """GET /v1/refusal-rate.
+
+        `since` (ISO 8601) and `buckets` are Next06 §2 sliding-window +
+        trend extensions; both are optional and default to "no filter"
+        / "no trend" so pre-Next06 callers (e.g. the LiveRun chip) keep
+        working unchanged.
+        """
+        params: dict[str, Any] = {"last": last}
+        if since is not None:
+            params["since"] = since
+        if buckets > 0:
+            params["buckets"] = buckets
+        return self._get_json("/v1/refusal-rate", **params)
 
     # --- reports ---------------------------------------------------------
 
