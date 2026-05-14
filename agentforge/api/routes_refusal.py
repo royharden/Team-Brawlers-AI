@@ -24,34 +24,86 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from agentforge.api.deps import get_session
 from agentforge.api.responses import RefusalRateResponse, RefusalTrendBucket
+from agentforge.config import get_settings
 from agentforge.judge.deterministic.refusal_taxonomy import detect_refusal
+from agentforge.judge.llm_refusal_classifier import classify_refusal
 from agentforge.memory.models import AttackJob, AttackTrace
 
 router = APIRouter()
 
 
-def _refused(trace: AttackTrace) -> bool:
-    """True if the trace's target_response shows a refusal marker."""
+def _body_text(trace: AttackTrace) -> str:
+    """Pull the response body preview from the trace's persisted JSON."""
     raw = trace.target_response_json or "{}"
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
-        return False
+        return ""
     if not isinstance(parsed, dict):
-        return False
+        return ""
     body = parsed.get("body_text_preview") or parsed.get("body_text") or ""
-    if not isinstance(body, str) or not body:
+    return body if isinstance(body, str) else ""
+
+
+def _build_llm_detector() -> Callable[[str], bool]:
+    """Build a detector callable backed by Haiku, falling back to the
+    deterministic detector when the Anthropic key isn't configured.
+
+    Constructs an SDK client once per request — the route handler holds
+    the closure for the duration of the scan, so we avoid re-init cost
+    when the operator hits a 1000-row Cost-tab refresh with detector=llm.
+    """
+    cfg = get_settings()
+    if not cfg.anthropic.api_key:
+        logger.warning(
+            "detector=llm requested but ANTHROPIC_API_KEY is not set — "
+            "falling back to deterministic detector"
+        )
+
+        def _deterministic_only(body_text: str) -> bool:
+            return detect_refusal(body_text) is not None
+
+        return _deterministic_only
+
+    try:
+        import anthropic
+
+        sdk_client = anthropic.Anthropic(api_key=cfg.anthropic.api_key)
+    except Exception as exc:  # broad: covers missing dep + auth-time errors
+        logger.warning("detector=llm could not init Anthropic SDK: {}", exc)
+
+        def _deterministic_after_init_fail(body_text: str) -> bool:
+            return detect_refusal(body_text) is not None
+
+        return _deterministic_after_init_fail
+
+    model = cfg.anthropic.fast_model
+
+    def _llm_detect(body_text: str) -> bool:
+        if not body_text:
+            return False
+        verdict = classify_refusal(body_text, client=sdk_client, model=model)
+        return verdict.is_refusal
+
+    return _llm_detect
+
+
+def _refused(trace: AttackTrace, *, detector: Callable[[str], bool]) -> bool:
+    """Apply the active detector to the trace's response body."""
+    body = _body_text(trace)
+    if not body:
         return False
-    return detect_refusal(body) is not None
+    return detector(body)
 
 
 def _mutators_in_trace(trace: AttackTrace) -> list[str]:
@@ -89,6 +141,7 @@ def _compute_trend(
     buckets: int,
     window_start: datetime,
     window_end: datetime,
+    detector: Callable[[str], bool],
 ) -> list[RefusalTrendBucket]:
     """Bucket the rows into `buckets` evenly-spaced windows between
     `window_start` and `window_end` and compute refusal rate per bucket.
@@ -122,7 +175,7 @@ def _compute_trend(
         idx = min(int(offset / width), buckets - 1)
         n, r = bucket_indices[idx]
         n += 1
-        if _refused(trace):
+        if _refused(trace, detector=detector):
             r += 1
         bucket_indices[idx] = (n, r)
 
@@ -148,6 +201,7 @@ def get_refusal_rate(
     last: int = Query(default=100, ge=1, le=1000),
     since: str | None = Query(default=None),
     buckets: int = Query(default=0, ge=0, le=48),
+    detector: str = Query(default="deterministic", pattern="^(deterministic|llm)$"),
     session: Session = Depends(get_session),
 ) -> RefusalRateResponse:
     """Refusal-rate aggregate over recent attack traces.
@@ -159,8 +213,22 @@ def get_refusal_rate(
       - `buckets` (optional, 1–48) — when set, also return a `trend`
         array with N evenly-spaced time buckets between the earliest
         and latest scanned attack (or `since`..now if `since` is set).
+      - `detector` — `deterministic` (default, free regex-marker scan)
+        or `llm` (Haiku-backed classifier, Next06 §3, catches
+        non-canonical refusals the regex misses; falls back to
+        deterministic when no ANTHROPIC_API_KEY).
     """
     since_dt: datetime | None = _parse_iso(since) if since else None
+
+    detector_fn: Callable[[str], bool]
+    if detector == "llm":
+        detector_fn = _build_llm_detector()
+    else:
+
+        def _deterministic(body_text: str) -> bool:
+            return detect_refusal(body_text) is not None
+
+        detector_fn = _deterministic
 
     q = (
         session.query(AttackTrace, AttackJob)
@@ -184,7 +252,7 @@ def get_refusal_rate(
     by_mut_refusals: dict[str, int] = defaultdict(int)
     for trace, job in rows:
         total += 1
-        is_refusal = _refused(trace)
+        is_refusal = _refused(trace, detector=detector_fn)
         by_cat_total[job.category] += 1
         by_strat_total[job.strategy] += 1
         for mut in _mutators_in_trace(trace):
@@ -228,6 +296,7 @@ def get_refusal_rate(
             buckets=buckets,
             window_start=window_start,
             window_end=now,
+            detector=detector_fn,
         )
 
     return RefusalRateResponse(
@@ -238,5 +307,5 @@ def get_refusal_rate(
         by_strategy=by_strategy,
         by_mutator=by_mutator,
         trend=trend,
-        detector="deterministic",
+        detector=detector,
     )

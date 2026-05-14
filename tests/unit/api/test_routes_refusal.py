@@ -278,6 +278,88 @@ def test_refusal_rate_buckets_returns_trend_array(client: TestClient, seeded_ses
 @pytest.mark.unit
 def test_refusal_rate_response_carries_detector_label(client: TestClient) -> None:
     """The response advertises which detector ran. Default is deterministic;
-    Next06 §3 will add `detector=llm` for the Haiku-backed classifier."""
+    Next06 §3 adds `detector=llm` for the Haiku-backed classifier."""
     body = client.get("/v1/refusal-rate").json()
     assert body["detector"] == "deterministic"
+
+
+# --------------------------------------------------------------------------- Next06 §3
+
+
+@pytest.mark.unit
+def test_refusal_rate_detector_llm_uses_classifier_verdict(
+    client: TestClient, seeded_session, monkeypatch
+) -> None:
+    """`detector=llm` swaps the per-row check for the Haiku classifier.
+
+    We force the classifier to flip non-canonical bodies to refusals so
+    the endpoint reports a different count from the deterministic path —
+    proves the param is wired all the way through.
+    """
+    # Seed 5 bodies that the DETERMINISTIC detector would NOT match.
+    _seed(
+        seeded_session,
+        n_total=5,
+        n_refusals=0,  # the "I cannot..." prefix is on the refusal side; non-refusals are "Here is..."
+        job_prefix="nc",
+        trace_prefix="nc",
+    )
+    seeded_session.commit()
+
+    # Deterministic baseline → 0% refusal rate
+    det_body = client.get("/v1/refusal-rate", params={"detector": "deterministic"}).json()
+    assert det_body["n_refusals"] == 0
+
+    # LLM detector that flags everything as a refusal
+    from agentforge.judge.llm_refusal_classifier import RefusalClassification
+
+    def _all_refusals(*_args, **_kwargs) -> RefusalClassification:
+        return RefusalClassification(
+            is_refusal=True, confidence=0.9, rationale="stub: everything is a refusal"
+        )
+
+    monkeypatch.setattr(
+        "agentforge.api.routes_refusal.classify_refusal",
+        _all_refusals,
+    )
+
+    # Force the _build_llm_detector path to think the key is configured + bypass SDK init.
+    class _FakeAnthropic:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.messages = self
+
+        def create(self, **_kwargs):
+            raise RuntimeError("should not be called — classify_refusal is stubbed")
+
+    # The route handler imports `get_settings` into its own namespace, so
+    # we must patch the symbol where it's used.
+    monkeypatch.setattr(
+        "agentforge.api.routes_refusal.get_settings",
+        lambda: type(
+            "S",
+            (),
+            {
+                "anthropic": type(
+                    "A",
+                    (),
+                    {"api_key": "k", "fast_model": "claude-haiku-4-5"},
+                )()
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "anthropic.Anthropic",
+        _FakeAnthropic,
+    )
+
+    llm_body = client.get("/v1/refusal-rate", params={"detector": "llm"}).json()
+    assert llm_body["detector"] == "llm"
+    assert llm_body["n_refusals"] == 5
+    assert llm_body["refusal_rate"] == pytest.approx(1.0)
+
+
+@pytest.mark.unit
+def test_refusal_rate_detector_invalid_value_rejected(client: TestClient) -> None:
+    """`?detector=foo` → 422 (FastAPI Query pattern enforcement)."""
+    r = client.get("/v1/refusal-rate", params={"detector": "foo"})
+    assert r.status_code == 422

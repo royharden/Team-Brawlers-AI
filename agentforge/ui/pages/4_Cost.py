@@ -46,12 +46,30 @@ def render() -> None:
     c1.metric("Spend (USD)", today.get("spend_usd", "0"))
     c2.metric("Calls", today.get("n_calls", 0))
 
+    # Next06 §3: detector selector — `deterministic` (free regex scan) vs
+    # `llm` (Haiku-backed classifier, catches non-canonical refusals at
+    # ~1 Haiku call per attack). Persists via session_state so a refresh
+    # doesn't reset the choice.
+    detector = st.radio(
+        "Refusal detector",
+        options=["deterministic", "llm"],
+        index=0,
+        horizontal=True,
+        help=(
+            "Deterministic = free regex marker scan. "
+            "LLM = Haiku classifier (Next06 §3) — catches 'I'd rather not' / "
+            "'that's not something I can help with' style refusals the regex "
+            "misses. Burns ~1 Haiku call per scanned attack."
+        ),
+        key="cost_refusal_detector",
+    )
+
     # Next06 §2: pull refusal-rate aggregate + 24h trend in a single call
     # so the metric chip and the chart below share the same scan window.
     refusal: dict = {}
     since_iso = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
     try:
-        refusal = client.refusal_rate(last=1000, since=since_iso, buckets=12)
+        refusal = client.refusal_rate(last=1000, since=since_iso, buckets=12, detector=detector)
     except Exception as exc:
         c3.error(f"refusal-rate unavailable: {exc}")
 
