@@ -53,6 +53,14 @@ the contract this catalog enforces.
 | `tests/unit/api/test_routes_refusal.py::test_refusal_rate_breaks_down_by_category` | `unit` | Two categories with different refusal rates surface separately |
 | `tests/unit/api/test_routes_refusal.py::test_refusal_rate_respects_last_param` | `unit` | `?last=N` caps the slice — only the most-recent N traces are scanned. |
 | `tests/unit/api/test_routes_refusal.py::test_refusal_rate_handles_malformed_target_response_json` | `unit` | A malformed `target_response_json` value is treated as non-refusal — |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_by_mutator_breaks_down_individual_mutators` | `unit` | 3 refusals all carrying mutator_chain=[base64_encoder, trust_mutator] |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_by_mutator_handles_disjoint_chains` | `unit` | Two seed groups with different mutator chains and different |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_since_filter_excludes_older_traces` | `unit` | `?since=` drops traces older than the cutoff (Next06 §2 + AgDR-0029 #1). |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_since_rejects_bad_iso_string` | `unit` | A non-ISO `since` returns 400 with a helpful detail. |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_buckets_returns_trend_array` | `unit` | `?buckets=N` returns a trend list of N buckets each with refusal_rate. |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_response_carries_detector_label` | `unit` | The response advertises which detector ran. Default is deterministic; |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_detector_llm_uses_classifier_verdict` | `unit` | `detector=llm` swaps the per-row check for the Haiku classifier. |
+| `tests/unit/api/test_routes_refusal.py::test_refusal_rate_detector_invalid_value_rejected` | `unit` | `?detector=foo` → 422 (FastAPI Query pattern enforcement). |
 | `tests/unit/api/test_routes_regression.py::test_list_regression_cases` | `unit` | `/v1/regression/cases` lists registered cases (vr_id + `what_bug_this_catches`). |
 | `tests/unit/api/test_routes_regression.py::test_latest_regression_results` | `unit` | `/v1/regression/results/latest` parses the most-recent `regression_*.jsonl`. |
 | `tests/unit/api/test_routes_reports.py::test_reports_list_filter_by_severity` | `unit` | `/v1/reports?severity=high` filters the response set. |
@@ -63,16 +71,23 @@ the contract this catalog enforces.
 | `tests/unit/api/test_routes_runs.py::test_run_detail_counts_attacks_and_verdicts` | `unit` | `/v1/runs/{id}` joins through `attack_traces` to count verdicts. |
 | `tests/unit/api/test_routes_runs.py::test_run_detail_404` | `unit` | Unknown run id returns 404 (no silent zero-row body). |
 | `tests/unit/api/test_routes_runs.py::test_runs_start_returns_run_id_and_pending_status` | `unit` | `POST /v1/runs/start` returns 200 + `{run_id, status}`. The runner |
-| `tests/unit/api/test_routes_runs.py::test_runs_start_429_when_another_run_in_flight` | `unit` | `POST /v1/runs/start` returns 429 when the runner refuses (concurrency |
+| `tests/unit/api/test_routes_runs.py::test_runs_start_429_when_queue_depth_reached` | `unit` | `POST /v1/runs/start` returns 429 only when the configured queue |
 | `tests/unit/api/test_routes_runs.py::test_get_run_live_state_404_when_not_tracked` | `unit` | `GET /v1/runs/{run_id}/state` returns 404 when the run_id was never |
 | `tests/unit/api/test_routes_runs.py::test_get_run_live_state_returns_tracked_state` | `unit` | `GET /v1/runs/{run_id}/state` returns the runner's in-memory state. |
 | `tests/unit/api/test_routes_runs.py::test_runs_stream_404_when_not_tracked` | `unit` | `GET /v1/runs/{run_id}/stream` returns 404 when the run_id is not |
+| `tests/unit/api/test_routes_startup_probe.py::test_startup_probe_endpoint_returns_rows_and_counts` | `unit` | Endpoint shape: rows[] + n_ok + n_error + n_missing_key totals. |
+| `tests/unit/api/test_routes_startup_probe.py::test_startup_probe_empty_results` | `unit` | Empty probe list (defensive — should never happen in practice) → |
 | `tests/unit/api/test_run_runner.py::test_get_run_state_returns_none_for_unknown_run` | `unit` | (no docstring) test_get_run_state_returns_none_for_unknown_run |
 | `tests/unit/api/test_run_runner.py::test_set_and_patch_round_trip` | `unit` | `_set` records a state; `_patch` updates fields by name. |
 | `tests/unit/api/test_run_runner.py::test_list_active_run_ids_filters_to_running` | `unit` | `list_active_run_ids` returns only `status == "running"` ids. |
 | `tests/unit/api/test_run_runner.py::test_stream_run_events_yields_terminal_state_then_stops` | `unit` | `stream_run_events` yields the current state, waits for terminal, |
 | `tests/unit/api/test_run_runner.py::test_stream_run_events_unknown_run_emits_error_event` | `unit` | A request to stream an unknown run_id yields an `event: error` payload |
 | `tests/unit/api/test_run_runner.py::test_stream_event_serialization_round_trip` | `unit` | Each `data:` event is a parseable JSON RunState. |
+| `tests/unit/api/test_run_runner.py::test_list_non_terminal_run_ids_includes_pending_and_running` | `unit` | `list_non_terminal_run_ids` is the queue-depth counter — it |
+| `tests/unit/api/test_run_runner.py::test_start_background_run_refuses_when_queue_depth_exhausted` | `unit` | When `pending+running` count reaches `max_concurrent + max_queued`, |
+| `tests/unit/api/test_run_runner.py::test_start_background_run_accepts_when_queue_has_slack` | `unit` | 4 in flight with limit=5 → accept the 5th, spawn the thread. |
+| `tests/unit/api/test_run_runner.py::test_semaphore_picks_up_max_concurrent_runs_from_settings` | `unit` | `_get_semaphore` builds a Semaphore of size `max_concurrent_runs` |
+| `tests/unit/api/test_run_runner.py::test_run_thread_acquires_and_releases_semaphore_around_step` | `unit` | The thread body acquires the sem, runs the orchestrator step, |
 | `tests/unit/documentation/test_doc_agent.py::test_pipeline_end_to_end_with_fake_clients` | `unit` | Full happy path: end-to-end writes everything to disk + DB. |
 | `tests/unit/documentation/test_doc_agent.py::test_layer_enforcement_refuses_internal_verdict` | `unit` | An internal_progress verdict must raise — only external_final makes VRs. |
 | `tests/unit/documentation/test_doc_agent.py::test_vr_counter_monotonic` | `unit` | Three consecutive write_report calls produce VR-0001, VR-0002, VR-0003. |
@@ -225,6 +240,14 @@ the contract this catalog enforces.
 | `tests/unit/judge/test_judge_prompts.py::test_target_response_wrapping` | `unit` | The render() output MUST wrap the response in evidence tags every time. |
 | `tests/unit/judge/test_judge_prompts.py::test_abstain_hint_present` | `unit` | `JUDGE_ABSTAIN_HINT` is a non-empty prefix the judge can prepend to abstain rationales. |
 | `tests/unit/judge/test_judge_prompts.py::test_raw_response_strict_parsing` | `unit` | `JudgeRawResponse.from_anthropic_text` accepts valid JSON (and ```json fences), but raises `MalformedJudgeResponse` on JSON errors, missing fields, bad outcome enum, out-of-range confidence, and rationale > 200 chars. |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_returns_true_for_canonical_refusal` | `unit` | Haiku says is_refusal=true → wrapper returns the same boolean. |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_returns_false_for_compliance` | `unit` | Haiku says is_refusal=false → wrapper passes through. |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_catches_non_canonical_phrasing` | `unit` | The whole point — a polite redirect like 'let's talk about something |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_falls_back_when_no_client` | `unit` | No client → deterministic detector. Rationale records the reason. |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_falls_back_when_sdk_raises` | `unit` | SDK exception → deterministic detector. A 404 / rate-limit must |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_falls_back_on_non_json_response` | `unit` | Haiku emitting plain prose → fallback. Real-world LLMs occasionally |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_empty_body_short_circuits` | `unit` | Empty / whitespace body → not a refusal, no SDK call. |
+| `tests/unit/judge/test_llm_refusal_classifier.py::test_classify_refusal_returns_classification_dataclass` | `unit` | Pin the public return shape so downstream UI code doesn't break. |
 | `tests/unit/judge/test_seed_catalog_schema.py::test_case_schema_is_well_formed` | `unit` | The schema itself must be a valid Draft 2020-12 schema. |
 | `tests/unit/judge/test_seed_catalog_schema.py::test_every_individual_seed_file_validates` | `unit` | Each YAML under evals/cases/<category>/ must validate as a single seed case. |
 | `tests/unit/judge/test_seed_catalog_schema.py::test_every_catalog_entry_validates` | `unit` | Each entry inside `seeds:` in every catalog YAML must validate. |
@@ -255,6 +278,12 @@ the contract this catalog enforces.
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_aggregates_tokens_across_rubrics` | `unit` | Successive `score_rubric` calls SUM into `last_aggregate_usage` so the |
 | `tests/unit/llm/test_anthropic_clients.py::test_sonnet_judge_reset_aggregate_usage_zeros_running_total` | `unit` | `reset_aggregate_usage()` clears the aggregate without touching |
 | `tests/unit/llm/test_anthropic_clients.py::test_external_final_judge_calls_reset_aggregate_at_score_entry` | `unit` | `ExternalFinalJudge.score()` zeros the wrapper's aggregate at the |
+| `tests/unit/llm/test_startup_probe.py::test_probe_returns_one_row_per_configured_model` | `unit` | All providers configured + distinct primary/fallback → 5 rows: |
+| `tests/unit/llm/test_startup_probe.py::test_probe_skips_duplicate_openrouter_fallback` | `unit` | When OpenRouter primary == fallback (the `:free` Dolphin default), |
+| `tests/unit/llm/test_startup_probe.py::test_probe_surfaces_phantom_sku_as_error_row` | `unit` | The whole point — phantom SKU 404 (the AgDR-0027 regression |
+| `tests/unit/llm/test_startup_probe.py::test_probe_emits_missing_key_for_unconfigured_optional_provider` | `unit` | Operator with no OpenAI key configured → the AgDR-0024 fallback |
+| `tests/unit/llm/test_startup_probe.py::test_probe_emits_missing_key_for_unconfigured_anthropic` | `unit` | No Anthropic key → both Haiku + Sonnet rows are `missing_key`. |
+| `tests/unit/llm/test_startup_probe.py::test_probe_only_pings_redteam_provider_thats_active` | `unit` | `redteam_provider=anthropic` → no OpenRouter rows. |
 | `tests/unit/observability/test_dashboards.py::test_aggregate_run_costs_rolls_up_by_role` | `unit` | `aggregate_run_costs` returns total + n_calls + per-role Decimal sums (master plan §15). |
 | `tests/unit/observability/test_dashboards.py::test_coverage_pct_handles_sparse_matrix` | `unit` | `coverage_pct` denominator is always 72; sparse inputs treat missing cells as uncovered. |
 | `tests/unit/observability/test_dashboards.py::test_recent_fingerprints_orders_distinct_most_recent_first` | `unit` | `recent_fingerprints` returns distinct fingerprints ordered most-recent first (no duplicates from repeat snapshots). |
@@ -434,6 +463,11 @@ the contract this catalog enforces.
 | `tests/unit/target_adapter/test_sidecar_direct.py::test_phi_in_response_body_scrubbed` | `unit` | If the sidecar returns a string matching a PHI pattern (SSN), the adapter |
 | `tests/unit/target_adapter/test_sidecar_direct.py::test_describe_action_includes_url` | `unit` | (no docstring) test_describe_action_includes_url |
 | `tests/unit/target_adapter/test_sidecar_direct.py::test_adapter_name_is_sidecar_direct` | `unit` | (no docstring) test_adapter_name_is_sidecar_direct |
+| `tests/unit/test_backfill_attack_id.py::test_backfill_populates_attack_id_from_trace_id_json` | `unit` | Pre-migration row (attack_id IS NULL but JSON carries trace_id) |
+| `tests/unit/test_backfill_attack_id.py::test_backfill_leaves_already_populated_rows_untouched` | `unit` | Post-migration row (attack_id already set) is skipped by the WHERE. |
+| `tests/unit/test_backfill_attack_id.py::test_backfill_skips_rows_without_trace_id_in_json` | `unit` | A pre-migration row whose JSON has no trace_id is reported but |
+| `tests/unit/test_backfill_attack_id.py::test_backfill_is_idempotent` | `unit` | Re-running the script on an already-backfilled DB finds nothing |
+| `tests/unit/test_backfill_attack_id.py::test_backfill_dry_run_reports_but_does_not_write` | `unit` | --dry-run returns the same stats but the row stays NULL. |
 | `tests/unit/test_cli.py::test_smoke_invokes_script` | `unit` | `tb smoke` invokes the correct platform script via subprocess. |
 | `tests/unit/test_cli.py::test_regress_mock_path_runs_cases` | `unit` | `tb regress --mock=<dir>` exits 0 when the floor is permissive. |
 | `tests/unit/test_cli.py::test_regress_case_path_runs_single_case` | `unit` | `tb regress --case VR-0001 --mock=<dir>` runs exactly one case. |
