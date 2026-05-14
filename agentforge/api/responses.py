@@ -271,6 +271,40 @@ class RefusalRateResponse(BaseModel):
     by_strategy: dict[str, float] = Field(default_factory=dict)
 
 
+# --- Startup probe (Next06 §1) ------------------------------------------------
+
+
+class StartupProbeRow(BaseModel):
+    """One model's reachability check result.
+
+    `status` is one of:
+      - `ok`           — provider responded successfully.
+      - `error`        — provider returned non-2xx or SDK raised; see `error`.
+      - `missing_key`  — no API key configured; probe skipped (not a failure).
+    """
+
+    provider: str
+    role: str
+    model: str
+    status: str
+    error: str | None = None
+    latency_ms: int | None = None
+
+
+class StartupProbeResponse(BaseModel):
+    """All configured-model probe rows + aggregate counts.
+
+    Surfaces the AgDR-0027-class regression early: any phantom SKU (e.g.
+    `claude-haiku-4-6` returning 404) shows up as a row with `status=error`
+    instead of silently degrading the Internal Judge to abstain.
+    """
+
+    rows: list[StartupProbeRow] = Field(default_factory=list)
+    n_ok: int = 0
+    n_error: int = 0
+    n_missing_key: int = 0
+
+
 __all__ = [
     "HealthResponse",
     "DashboardResponse",
@@ -302,4 +336,6 @@ __all__ = [
     "ApprovalQueueItem",
     "ApprovalQueueResponse",
     "RefusalRateResponse",
+    "StartupProbeRow",
+    "StartupProbeResponse",
 ]

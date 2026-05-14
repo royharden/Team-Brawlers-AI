@@ -25,6 +25,7 @@ from agentforge.api import (
     routes_regression,
     routes_reports,
     routes_runs,
+    routes_startup_probe,
 )
 
 # Phase 8 (Next05 close-out): 496 tests passing on `main`.
@@ -64,6 +65,7 @@ def _build_app() -> FastAPI:
     app.include_router(routes_approval.router, prefix="/v1", tags=["approval"])
     app.include_router(routes_judge.router, prefix="/v1", tags=["judge"])
     app.include_router(routes_refusal.router, prefix="/v1", tags=["refusal"])
+    app.include_router(routes_startup_probe.router, prefix="/v1", tags=["startup"])
 
     return app
 
