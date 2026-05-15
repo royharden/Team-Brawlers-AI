@@ -102,15 +102,24 @@ def coverage_heatmap(snapshot: list[dict[str, Any]]) -> dict[str, Any]:
         return grid
 
     # Best-effort render; never raise if streamlit is in a stripped harness.
+    # Use a pandas DataFrame WITH explicit `index=CATEGORIES` so the row labels
+    # render in the table AND survive into the operator's CSV export. Earlier
+    # version passed a dict-of-columns which left rows un-labeled (Streamlit
+    # filled the index with 0..7 integers, and CSV downloads lost the category
+    # name entirely).
     try:
+        import pandas as pd
         import streamlit as st
 
-        st.dataframe(
+        df = pd.DataFrame(
             {
                 strat: [grid["pass_rate"][i][j] for i in range(len(CATEGORIES))]
                 for j, strat in enumerate(STRATEGIES)
             },
+            index=CATEGORIES,
         )
+        df.index.name = "category"
+        st.dataframe(df)
     except Exception:  # pragma: no cover — best-effort UI render
         pass
     return grid
