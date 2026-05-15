@@ -120,7 +120,7 @@ markers = [
 # Skip cached/generated/vendored content + the cloned OpenEMR target.
 # Also skip pyproject.toml itself (this section's prose mentions words that
 # would self-trigger if scanned).
-skip = "*.lock,*.min.js,*.min.css,openemr/*,evals/cache/*,tests/CATALOG.md,.git/*,.mypy_cache/*,.ruff_cache/*,.pytest_cache/*,__pycache__/*"
+skip = "*.lock,*.min.js,*.min.css,openemr/*,evals/cache/*,tests/CATALOG.md,scripts/fixtures/*,.git/*,.mypy_cache/*,.ruff_cache/*,.pytest_cache/*,__pycache__/*"
 # Domain terms live in a SEPARATE file so codespell doesn't scan its own
 # ignore list (the OpenEMR ouroboros trap). Add domain terms there, not here.
 ignore-words = ".codespell-ignore-words.txt"

@@ -61,7 +61,7 @@ repos:
     # pre-commit's cached venv). Skip globs match [tool.codespell] in pyproject.
     args:
       - --ignore-words=.codespell-ignore-words.txt
-      - --skip=*.lock,*.min.js,*.min.css,openemr/*,evals/cache/*,tests/CATALOG.md,.git/*,.mypy_cache/*,.ruff_cache/*,.pytest_cache/*,__pycache__/*
+      - --skip=*.lock,*.min.js,*.min.css,openemr/*,evals/cache/*,tests/CATALOG.md,scripts/fixtures/*,.git/*,.mypy_cache/*,.ruff_cache/*,.pytest_cache/*,__pycache__/*
       - --quiet-level=2
 
 # actionlint for GitHub Actions workflow YAML

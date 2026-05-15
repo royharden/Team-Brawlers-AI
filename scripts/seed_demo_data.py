@@ -68,6 +68,17 @@ from agentforge.memory.models import (
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _REPORTS_DIR = _REPO_ROOT / "reports"
 _REGRESSION_DIR = _REPO_ROOT / "evals" / "regression"
+# Captured snapshot of the live local DB at submission time. Generated via:
+#   docker exec agentforge-api python -c "
+#       import sqlite3; con = sqlite3.connect('/app/data/agentforge.sqlite')
+#       for line in con.iterdump():
+#           if line.startswith('INSERT INTO ') and 'alembic_version' not in line:
+#               print(line)
+#   " > scripts/fixtures/seed_dump.sql
+# Fresh deploys (e.g. Railway) load this so the operator's dashboard state
+# survives the move. Local dev without the fixture falls back to the synthetic
+# `_seed_*` functions below.
+_FIXTURE_PATH = _REPO_ROOT / "scripts" / "fixtures" / "seed_dump.sql"
 
 # Match the orchestrator's coverage matrix dimensions.
 _CATEGORIES: tuple[str, ...] = (
@@ -117,6 +128,43 @@ def _sha256(s: str) -> str:
 
 def _has_existing_data(session: Session) -> bool:
     return session.query(Run).count() > 0
+
+
+def _load_fixture(session: Session) -> int:
+    """Execute every INSERT statement in ``_FIXTURE_PATH`` against the session.
+
+    Returns the count of statements executed. Returns 0 if the fixture file
+    doesn't exist (signal to caller to fall through to synthetic seed).
+    Raises on any SQL failure — caller decides whether to roll back + fall
+    through or abort.
+
+    The fixture is a captured snapshot of the live local DB at submission
+    time. Loading it on a fresh deploy gives the operator's dashboard the
+    same shape it had during demo recording — same VR count, same coverage
+    matrix density, same dashboard totals. The `alembic_version` table is
+    intentionally excluded from the fixture (alembic upgrade head handles it
+    in the boot chain before this seeder runs).
+    """
+    if not _FIXTURE_PATH.exists():
+        return 0
+    raw = _FIXTURE_PATH.read_text(encoding="utf-8")
+    # Each INSERT is one line in the iterdump() output. Filter to the lines we
+    # need (defense in depth — the dump script already filtered, but a future
+    # operator regenerating it might forget). Strip trailing semicolons.
+    statements = [
+        line.rstrip().rstrip(";")
+        for line in raw.splitlines()
+        if line.strip().startswith("INSERT INTO ") and "alembic_version" not in line
+    ]
+    if not statements:
+        return 0
+    bind = session.get_bind()
+    n = 0
+    with bind.begin() as conn:
+        for stmt in statements:
+            conn.exec_driver_sql(stmt)
+            n += 1
+    return n
 
 
 # ---------------------------------------------------------------- seed payload
@@ -622,6 +670,28 @@ def seed(force: bool = False) -> int:
                 file=sys.stderr,
             )
             return 0
+
+        # Prefer the committed fixture (production-shape data captured at
+        # submission time). Fall through to synthetic if fixture is missing
+        # or fails to load.
+        if _FIXTURE_PATH.exists():
+            try:
+                n = _load_fixture(session)
+                print(
+                    f"seed_demo_data: loaded {n} INSERT statements from "
+                    f"{_FIXTURE_PATH.relative_to(_REPO_ROOT)}"
+                )
+                return 0
+            except Exception as exc:
+                print(
+                    f"seed_demo_data: fixture load failed ({exc!r}); "
+                    "falling back to synthetic seed",
+                    file=sys.stderr,
+                )
+                session.rollback()
+                # Re-open session in case the failed transaction tainted it.
+                session.close()
+                session = factory()
 
         runs = _seed_runs()
         for r in runs:

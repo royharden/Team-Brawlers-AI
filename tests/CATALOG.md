@@ -500,6 +500,11 @@ the contract this catalog enforces.
 | `tests/unit/test_pricing.py::test_resolve_models_anthropic_all_found` | `unit` | REDTEAM_PROVIDER=anthropic, all requested models present, no substitution. |
 | `tests/unit/test_pricing.py::test_resolve_models_fast_resolves_to_haiku_45` | `unit` | When haiku-4-5 is the configured fast model AND it's published, the |
 | `tests/unit/test_pricing.py::test_resolve_models_fireworks_substitution_logged` | `unit` | When REDTEAM_PROVIDER=fireworks but no Fireworks key/SDK, the resolver |
+| `tests/unit/test_seed_demo_data_fixture.py::test_fixture_file_exists_and_parses_as_inserts` | `unit` | The committed fixture file must be present and contain real INSERTs |
+| `tests/unit/test_seed_demo_data_fixture.py::test_fixture_loads_into_empty_db_with_expected_row_counts` | `unit` | Run seed() against an empty DB; verify the fixture path fired and |
+| `tests/unit/test_seed_demo_data_fixture.py::test_synthetic_seed_runs_when_fixture_missing` | `unit` | If the fixture path doesn't exist, the seeder falls through to the |
+| `tests/unit/test_seed_demo_data_fixture.py::test_idempotency_skip_when_db_already_populated` | `unit` | Run seed twice — the second invocation must short-circuit without |
+| `tests/unit/test_seed_demo_data_fixture.py::test_force_flag_replays_seed_on_populated_db` | `unit` | `seed(force=True)` bypasses the idempotency check and re-loads. |
 | `tests/unit/ui/test_api_client.py::test_healthz_hits_correct_path` | `unit` | `AgentForgeClient.healthz()` GETs `/healthz`. |
 | `tests/unit/ui/test_api_client.py::test_dashboard_runs_reports_paths` | `unit` | UI client hits the correct paths for dashboard / runs / reports endpoints (respx-mocked). |
 | `tests/unit/ui/test_api_client.py::test_refusal_rate_hits_correct_path` | `unit` | `AgentForgeClient.refusal_rate(last)` GETs `/v1/refusal-rate?last=N` |
