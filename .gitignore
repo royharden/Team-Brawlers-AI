@@ -2,6 +2,9 @@
 agentdocs/
 planning/
 
+# --- local stack runtime state (scripts/stack.{ps1,sh}: sidecar PID + logs) ---
+.stack/
+
 # --- secrets / credentials (NEVER commit) ---
 .env
 .env.*
