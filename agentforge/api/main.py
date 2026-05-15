@@ -29,7 +29,7 @@ from agentforge.api import (
 )
 
 # Phase 8 (Next06 close-out): 530 tests passing on `main`.
-TESTS_PASSING_AT_BUILD: int = 530
+TESTS_PASSING_AT_BUILD: int = 534
 
 
 def _build_app() -> FastAPI:
