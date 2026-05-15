@@ -28,7 +28,7 @@ Inter-agent communication is Pydantic-typed and persisted as HMAC-signed `agent_
 flowchart TB
   subgraph CTL["Operator surface"]
     UI[Streamlit Dashboard<br/>HTTP-only to FastAPI]
-    CLI[CLI: tb attack | tb regress | tb smoke | tb report]
+    CLI["CLI: tb attack | tb regress | tb smoke | tb report"]
     CRON[APScheduler in-process<br/>+ nightly GH Actions]
   end
 
